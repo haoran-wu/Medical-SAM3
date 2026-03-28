@@ -12,8 +12,9 @@ import numpy as np
 from PIL import Image
 
 
-# Base data directory - update this path to your local data location
-DATA_ROOT = Path("../medsam_data")
+# Resolve common dataset locations from the repository root first.
+PROJECT_ROOT = Path(__file__).resolve().parent.parent
+DATA_ROOT = PROJECT_ROOT.parent / "medsam_data"
 
 # Text prompts for each dataset
 DATASET_PROMPTS = {
@@ -22,6 +23,7 @@ DATASET_PROMPTS = {
     "CVC-ClinicDB": "Polyp",
     "ETIS-Larib": "Polyp",
     "PH2": "Skin Lesion",
+    "Kvasir-SEG": "Polyp",
     "TN3K": "thyroid nodule",    
     "DDTI": "thyroid nodule", 
     "TG3K": "thyroid nodule",  
@@ -39,6 +41,20 @@ class Sample:
     dataset_name: str
     sample_id: str
     text_prompt: str
+
+
+def _resolve_dataset_dir(dataset_name: str) -> Path:
+    """Find a dataset in either the shared data root or the repository folder."""
+    candidates = [
+        DATA_ROOT / dataset_name,
+        PROJECT_ROOT / dataset_name,
+        PROJECT_ROOT.parent / dataset_name,
+    ]
+    for candidate in candidates:
+        if candidate.exists():
+            return candidate
+    # Fall back to the shared data root for clearer downstream errors.
+    return DATA_ROOT / dataset_name
 
 
 def load_chase_db1(max_samples: Optional[int] = None) -> Iterator[Sample]:
@@ -266,6 +282,50 @@ def load_ph2(max_samples: Optional[int] = None) -> Iterator[Sample]:
             sample_id=sample_id,
             text_prompt=DATASET_PROMPTS["PH2"]
         )
+
+
+def load_kvasir_seg(max_samples: Optional[int] = None) -> Iterator[Sample]:
+    """
+    Load Kvasir-SEG dataset.
+
+    Structure:
+        Kvasir-SEG/
+        ├── images/*.jpg  # Original image
+        └── masks/*.jpg   # Binary mask
+    """
+    dataset_dir = _resolve_dataset_dir("Kvasir-SEG")
+    image_dir = dataset_dir / "images"
+    mask_dir = dataset_dir / "masks"
+
+    image_files = sorted(
+        [
+            f for f in os.listdir(image_dir)
+            if f.lower().endswith((".jpg", ".jpeg", ".png"))
+        ]
+    )
+
+    if max_samples:
+        image_files = image_files[:max_samples]
+
+    for img_file in image_files:
+        sample_id = os.path.splitext(img_file)[0]
+        img_path = image_dir / img_file
+        mask_path = mask_dir / img_file
+
+        if not mask_path.exists():
+            continue
+
+        image = np.array(Image.open(img_path).convert("RGB"))
+        gt_mask = np.array(Image.open(mask_path).convert("L"))
+        gt_mask = (gt_mask > 127).astype(np.uint8)
+
+        yield Sample(
+            image=image,
+            gt_mask=gt_mask,
+            dataset_name="Kvasir-SEG",
+            sample_id=sample_id,
+            text_prompt=DATASET_PROMPTS["Kvasir-SEG"],
+        )
         
 def load_hc18(max_samples: Optional[int] = None) -> Iterator[Sample]:
     """
@@ -454,6 +514,8 @@ def load_consep(max_samples: Optional[int] = None) -> Iterator[Sample]:
     Note: Both Train and Test sets are used for evaluation as requested.
     Labels are .mat files containing 'inst_map' which we convert to binary mask.
     """
+    import scipy.io
+
     dataset_dir = DATA_ROOT / "CoNSeP"
     subsets = ["Test", "Train"]
     
@@ -595,6 +657,7 @@ DATASET_LOADERS = {
     "CVC-ClinicDB": load_cvc_clinicdb,
     "ETIS-Larib": load_etis_larib,
     "PH2": load_ph2,
+    "Kvasir-SEG": load_kvasir_seg,
     "TN3K": load_tn3k,
     "TG3K": load_tg3k,
     "DDTI": load_ddti,

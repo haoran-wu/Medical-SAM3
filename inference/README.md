@@ -35,6 +35,43 @@ python run_medsam3_evaluation.py \
 
 **Options:** `--max-samples N`, `--datasets "Dataset1,Dataset2"`
 
+## Single-image spatialLIBD inference
+
+This repo also includes a single-image inference entrypoint for the current
+`spatialLIBD` workflow.
+
+Default input image:
+
+- `../data/spatialLIBD/151673/tissue_hires_image.png`
+
+Full-resolution source image:
+
+- `../data/spatialLIBD/151673/151673_full_image.tif`
+
+Prompt list:
+
+- `prompts/spatiallibd_dlpfc_layers.txt`
+
+Run:
+
+```bash
+python run_spatiallibd_prompts.py
+```
+
+Optional custom checkpoint:
+
+```bash
+python run_spatiallibd_prompts.py \
+    --checkpoint /path/to/checkpoint.pt
+```
+
+Notes:
+
+- The default script input is the `2000 x 2000` PNG.
+- The full-resolution TIFF is still available when you want the raw source image.
+- The default inference setting resizes the longest side to `2048` to keep memory manageable.
+- Outputs are written to `../output/spatialLIBD_151673/`.
+
 ## Visualization
 
 ```bash
@@ -49,4 +86,6 @@ python visualize_all_datasets.py
 
 ## Datasets
 
-**Data path:** `../medsam_data/`
+**Evaluation data path:** `../medsam_data/`
+
+`../Kvasir-SEG/` is only bundled as example data for local smoke tests.

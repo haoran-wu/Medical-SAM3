@@ -4,6 +4,8 @@ Supports both box prompt and text prompt inference.
 """
 
 import sys
+import gc
+from contextlib import nullcontext
 from pathlib import Path
 from typing import Optional, Tuple
 
@@ -11,14 +13,34 @@ import numpy as np
 import torch
 from PIL import Image
 
-# Add SAM3 to path - update this to your SAM3 installation directory
-SAM3_ROOT = Path("../sam3")
+# Resolve paths from this file so the scripts work regardless of cwd.
+PROJECT_ROOT = Path(__file__).resolve().parent.parent
+SAM3_ROOT = PROJECT_ROOT.parent / "sam3"
 sys.path.insert(0, str(SAM3_ROOT))
 
 from sam3 import build_sam3_image_model
 from sam3.model.sam3_image_processor import Sam3Processor
 from sam3.model.box_ops import box_xywh_to_cxcywh
-from sam3.visualization_utils import normalize_bbox
+
+
+def normalize_bbox(bbox_xywh, img_w, img_h):
+    """Normalize XYWH bounding boxes to [0, 1] coordinates."""
+    if isinstance(bbox_xywh, list):
+        assert len(bbox_xywh) == 4, "bbox_xywh list must have 4 elements."
+        normalized_bbox = bbox_xywh.copy()
+        normalized_bbox[0] /= img_w
+        normalized_bbox[1] /= img_h
+        normalized_bbox[2] /= img_w
+        normalized_bbox[3] /= img_h
+        return normalized_bbox
+
+    normalized_bbox = bbox_xywh.clone()
+    assert normalized_bbox.size(-1) == 4, "bbox_xywh tensor must end with 4 values."
+    normalized_bbox[..., 0] /= img_w
+    normalized_bbox[..., 1] /= img_h
+    normalized_bbox[..., 2] /= img_w
+    normalized_bbox[..., 3] /= img_h
+    return normalized_bbox
 
 
 class SAM3Model:
@@ -27,7 +49,7 @@ class SAM3Model:
     def __init__(
         self,
         confidence_threshold: float = 0.1,
-        device: str = "cuda",
+        device: Optional[str] = None,
         checkpoint_path: Optional[str] = None
     ):
         """
@@ -35,35 +57,59 @@ class SAM3Model:
 
         Args:
             confidence_threshold: Minimum confidence for detections
-            device: Device to run on ('cuda' or 'cpu')
+            device: Device to run on ('cuda', 'mps', or 'cpu').
+                    If None, auto-detect the best available device.
             checkpoint_path: Path to custom checkpoint file (optional).
                             If None, loads default SAM3 from HuggingFace.
         """
-        self.device = device
+        self.device = device or self._select_device()
         self.confidence_threshold = confidence_threshold
         self.checkpoint_path = checkpoint_path
         self.model = None
         self.processor = None
+
+    @staticmethod
+    def _select_device() -> str:
+        """Pick the best available local device."""
+        if torch.cuda.is_available():
+            return "cuda"
+        if torch.backends.mps.is_available():
+            return "mps"
+        return "cpu"
 
     def load_model(self):
         """Load SAM3 model (lazy loading)."""
         if self.model is not None:
             return
 
+        if not SAM3_ROOT.exists():
+            raise FileNotFoundError(
+                f"SAM3 source not found at {SAM3_ROOT}. "
+                "Clone https://github.com/facebookresearch/sam3.git next to Medical-SAM3 "
+                "and install it with `pip install -e ../sam3`."
+            )
+
         if self.checkpoint_path:
             print(f"Loading SAM3 model from checkpoint: {self.checkpoint_path}")
         else:
             print("Loading SAM3 model from HuggingFace...")
+        print(f"Using device: {self.device}")
 
-        # Enable optimizations
-        torch.backends.cuda.matmul.allow_tf32 = True
-        torch.backends.cudnn.allow_tf32 = True
+        # Enable CUDA-specific optimizations when available.
+        if self.device == "cuda":
+            torch.backends.cuda.matmul.allow_tf32 = True
+            torch.backends.cudnn.allow_tf32 = True
 
-        # Use bfloat16 for inference
-        torch.autocast("cuda", dtype=torch.bfloat16).__enter__()
+        # Use bfloat16 autocast on CUDA only. CPU/MPS fall back to the default dtype.
+        autocast_ctx = (
+            torch.autocast("cuda", dtype=torch.bfloat16)
+            if self.device == "cuda"
+            else nullcontext()
+        )
+        autocast_ctx.__enter__()
 
         # Load model
-        bpe_path = SAM3_ROOT / "assets" / "bpe_simple_vocab_16e6.txt.gz"
+        bpe_path = SAM3_ROOT / "sam3" / "assets" / "bpe_simple_vocab_16e6.txt.gz"
 
         if self.checkpoint_path:
             # For custom checkpoints (e.g., MedSAM3), we need to handle
@@ -78,11 +124,23 @@ class SAM3Model:
             self._load_custom_checkpoint(self.checkpoint_path)
         else:
             # Use default HuggingFace loading
-            self.model = build_sam3_image_model(
-                bpe_path=str(bpe_path),
-                checkpoint_path=None,
-                load_from_HF=True
-            )
+            try:
+                self.model = build_sam3_image_model(
+                    bpe_path=str(bpe_path),
+                    checkpoint_path=None,
+                    load_from_HF=True
+                )
+            except Exception as exc:
+                raise RuntimeError(
+                    "Failed to load default SAM3 weights from HuggingFace. "
+                    "If you want the fine-tuned Medical-SAM3 model, rerun with "
+                    "`--checkpoint /path/to/your_checkpoint.pt`. "
+                    "If you want the base SAM3 model, make sure this machine can "
+                    "download `facebook/sam3` once or that the weights are already cached locally."
+                ) from exc
+
+        if hasattr(self.model, "to"):
+            self.model = self.model.to(self.device)
 
         self.processor = Sam3Processor(
             self.model,
@@ -101,7 +159,12 @@ class SAM3Model:
         """
         print(f"Loading custom checkpoint: {checkpoint_path}")
 
-        ckpt = torch.load(checkpoint_path, map_location="cpu", weights_only=False)
+        ckpt = torch.load(
+            checkpoint_path,
+            map_location="cpu",
+            weights_only=False,
+            mmap=True,
+        )
 
         # Extract model state dict
         if "model" in ckpt and isinstance(ckpt["model"], dict):
@@ -126,8 +189,14 @@ class SAM3Model:
 
         # Load state dict
         missing_keys, unexpected_keys = self.model.load_state_dict(
-            clean_state_dict, strict=False
+            clean_state_dict, strict=False, assign=True
         )
+
+        # Release checkpoint references as early as possible to reduce peak memory.
+        del ckpt
+        del state_dict
+        del clean_state_dict
+        gc.collect()
 
         if missing_keys:
             print(f"  Missing keys: {len(missing_keys)}")

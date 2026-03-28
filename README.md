@@ -33,6 +33,27 @@ The inference pipeline supports:
   </a>
 </div>
 
+## Repository Layout
+
+- `Kvasir-SEG/` is local example data for smoke tests and demos.
+- `data/spatialLIBD/151673/tissue_hires_image.png` is the current default single-image inference target for spatial transcriptomics experiments.
+- `data/spatialLIBD/151673/151673_full_image.tif` is kept as the full-resolution source image.
+- `inference/run_spatiallibd_prompts.py` runs text-prompted inference on that TIFF and saves one mask per prompt.
+
+## Current spatialLIBD workflow
+
+The current repo workflow is centered on a single `spatialLIBD` TIFF image rather than the bundled medical evaluation datasets.
+
+Current prompts:
+
+- `dorsolateral prefrontal cortex Layer1`
+- `dorsolateral prefrontal cortex Layer3`
+- `dorsolateral prefrontal cortex Layer6`
+- `dorsolateral prefrontal cortex Layer4`
+- `dorsolateral prefrontal cortex Layer5`
+- `dorsolateral prefrontal cortex Layer2`
+- `dorsolateral prefrontal cortex White Matter`
+
 ## 📅 Todo List
 
 | Feature | Status | Description |

@@ -34,3 +34,7 @@ Thumbs.db
 inference/results/
 inference/visualization/
 inference/*.ipynb
+
+# Local raw data and generated artifacts
+data/
+output/

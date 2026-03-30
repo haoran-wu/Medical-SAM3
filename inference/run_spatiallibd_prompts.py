@@ -1,10 +1,10 @@
 #!/usr/bin/env python3
 """
-Run text-prompted Medical-SAM3 inference on a single spatialLIBD TIFF image.
+Run text-prompted Medical-SAM3 inference on a single image.
 
 This script is for the current workflow in this repo:
-- input image: data/spatialLIBD/151673/tissue_hires_image.png
-- prompts: dorsolateral prefrontal cortex layers + white matter
+- input image: Weixin Image_20260328200425_348_3014.jpg
+- prompts: histology / tissue structure labels
 
 It does not require ground-truth masks. The output is a set of predicted masks,
 per-prompt overlays, and a JSON summary.
@@ -35,9 +35,9 @@ sys.path.insert(0, str(Path(__file__).parent))
 from sam3_inference import SAM3Model, resize_mask
 
 
-DEFAULT_IMAGE_PATH = PROJECT_ROOT / "data" / "spatialLIBD" / "151673" / "tissue_hires_image.png"
-DEFAULT_PROMPTS_PATH = Path(__file__).parent / "prompts" / "spatiallibd_dlpfc_layers.txt"
-DEFAULT_OUTPUT_DIR = PROJECT_ROOT / "output" / "spatialLIBD_151673"
+DEFAULT_IMAGE_PATH = PROJECT_ROOT / "Weixin Image_20260328200425_348_3014.jpg"
+DEFAULT_PROMPTS_PATH = Path(__file__).parent / "prompts" / "weixin_20260328200425_348_3014_labels.txt"
+DEFAULT_OUTPUT_DIR = PROJECT_ROOT / "output" / "weixin_20260328200425_348_3014"
 DEFAULT_MAX_SIDE = 2048
 OVERLAY_COLORS = [
     (230, 57, 70),
@@ -122,7 +122,7 @@ def save_contact_sheet(image: np.ndarray, overlays: Iterable[dict], output_path:
     axes = np.array(axes).reshape(-1)
 
     axes[0].imshow(image)
-    axes[0].set_title("Source TIFF")
+    axes[0].set_title("Source Image")
     axes[0].axis("off")
 
     for idx, item in enumerate(overlays, start=1):
@@ -139,12 +139,12 @@ def save_contact_sheet(image: np.ndarray, overlays: Iterable[dict], output_path:
 
 
 def main() -> None:
-    parser = argparse.ArgumentParser(description="Run Medical-SAM3 on a single spatialLIBD TIFF image.")
+    parser = argparse.ArgumentParser(description="Run Medical-SAM3 on a single image with text prompts.")
     parser.add_argument(
         "--image-path",
         type=Path,
         default=DEFAULT_IMAGE_PATH,
-        help="Path to the input TIFF image.",
+        help="Path to the input image.",
     )
     parser.add_argument(
         "--prompts-path",

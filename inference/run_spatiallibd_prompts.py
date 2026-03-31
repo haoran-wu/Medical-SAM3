@@ -3,7 +3,7 @@
 Run text-prompted Medical-SAM3 inference on a single image.
 
 This script is for the current workflow in this repo:
-- input image: Weixin Image_20260328200425_348_3014.jpg
+- input image: example2.png
 - prompts: histology / tissue structure labels
 
 It does not require ground-truth masks. The output is a set of predicted masks,
@@ -32,12 +32,13 @@ from PIL import Image
 # Add current directory to path
 sys.path.insert(0, str(Path(__file__).parent))
 
+from render_multicolor_overlay import render_multicolor_overlay
 from sam3_inference import SAM3Model, resize_mask
 
 
-DEFAULT_IMAGE_PATH = PROJECT_ROOT / "Weixin Image_20260328200425_348_3014.jpg"
+DEFAULT_IMAGE_PATH = PROJECT_ROOT / "example2.png"
 DEFAULT_PROMPTS_PATH = Path(__file__).parent / "prompts" / "weixin_20260328200425_348_3014_labels.txt"
-DEFAULT_OUTPUT_DIR = PROJECT_ROOT / "output" / "weixin_20260328200425_348_3014"
+DEFAULT_OUTPUT_DIR = PROJECT_ROOT / "output" / "example2"
 DEFAULT_MAX_SIDE = 2048
 OVERLAY_COLORS = [
     (230, 57, 70),
@@ -253,6 +254,14 @@ def main() -> None:
 
     contact_sheet_path = output_dir / "prompt_overlays.png"
     save_contact_sheet(image, contact_sheet_items, contact_sheet_path)
+    multicolor_overlay_path = output_dir / "prompt_multicolor_overlay.png"
+    render_multicolor_overlay(
+        image_path=args.image_path,
+        predictions_path=metadata_path,
+        output_path=multicolor_overlay_path,
+        max_display_height=1800,
+        alpha=110,
+    )
 
     print("\n" + "=" * 60)
     print("Inference complete")
@@ -260,6 +269,7 @@ def main() -> None:
     print(f"Overlays: {overlays_dir}")
     print(f"Summary: {metadata_path}")
     print(f"Contact sheet: {contact_sheet_path}")
+    print(f"Combined overlay: {multicolor_overlay_path}")
     print("=" * 60)
 
 

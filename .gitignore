@@ -38,3 +38,5 @@ inference/*.ipynb
 # Local raw data and generated artifacts
 data/
 output/
+!data/tma24/
+!data/tma24/TMA24.csv

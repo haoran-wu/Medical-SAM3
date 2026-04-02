@@ -164,6 +164,12 @@ def metrics_to_dict(pred: np.ndarray, gt: np.ndarray) -> Dict[str, float]:
     }
 
 
+def serialize_bbox(bbox: Optional[Tuple[int, int, int, int]]) -> Optional[List[int]]:
+    if bbox is None:
+        return None
+    return [int(v) for v in bbox]
+
+
 def main() -> None:
     parser = argparse.ArgumentParser(description="Run left-to-right transfer experiment using TMA24 pseudo-masks.")
     parser.add_argument("--image-path", type=Path, default=DEFAULT_IMAGE_PATH)
@@ -266,7 +272,7 @@ def main() -> None:
         experiment["labels"].append(
             {
                 "label": label,
-                "left_bbox_xyxy": bbox,
+                "left_bbox_xyxy": serialize_bbox(bbox),
                 "left_positive_pixels": int(left_mask.sum()),
                 "right_positive_pixels": int(right_mask.sum()),
                 "box_prompt_metrics_right_half": box_metrics,

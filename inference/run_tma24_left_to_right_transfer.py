@@ -38,7 +38,7 @@ from PIL import Image
 sys.path.insert(0, str(Path(__file__).parent))
 
 from metrics import compute_all_metrics
-from sam3_inference import SAM3Model, generate_bbox_from_mask, resize_mask
+from sam3_inference import SAM3Model, resize_mask
 
 
 DEFAULT_IMAGE_PATH = PROJECT_ROOT / "example1.jpg"
@@ -55,6 +55,22 @@ COLORS: List[Tuple[float, float, float]] = [
 
 def load_binary_mask(path: Path) -> np.ndarray:
     return (np.array(Image.open(path).convert("L")) > 127).astype(np.uint8)
+
+
+def resolve_summary_asset_path(summary_path: Path, asset_path: str) -> Path:
+    candidate = Path(asset_path)
+    if candidate.is_absolute() and candidate.exists():
+        return candidate
+
+    project_candidate = PROJECT_ROOT / candidate
+    if project_candidate.exists():
+        return project_candidate
+
+    fallback = summary_path.parent / candidate.parent.name / candidate.name
+    if fallback.exists():
+        return fallback
+
+    return project_candidate
 
 
 def resize_image_and_masks(
@@ -88,6 +104,48 @@ def split_mask_left_right(mask: np.ndarray, split_x: int) -> Tuple[np.ndarray, n
     return left, right
 
 
+def generate_component_bboxes_from_mask(
+    mask: np.ndarray,
+    min_component_pixels: int = 250,
+) -> List[Tuple[int, int, int, int]]:
+    """
+    Extract one bbox per connected component from a binary prompt mask.
+    """
+    height, width = mask.shape
+    visited = np.zeros_like(mask, dtype=bool)
+    boxes: List[Tuple[int, int, int, int, int]] = []
+
+    for y in range(height):
+        for x in range(width):
+            if not mask[y, x] or visited[y, x]:
+                continue
+
+            stack = [(y, x)]
+            visited[y, x] = True
+            area = 0
+            x_min = x_max = x
+            y_min = y_max = y
+
+            while stack:
+                cy, cx = stack.pop()
+                area += 1
+                x_min = min(x_min, cx)
+                x_max = max(x_max, cx)
+                y_min = min(y_min, cy)
+                y_max = max(y_max, cy)
+
+                for ny, nx in ((cy - 1, cx), (cy + 1, cx), (cy, cx - 1), (cy, cx + 1)):
+                    if 0 <= ny < height and 0 <= nx < width and mask[ny, nx] and not visited[ny, nx]:
+                        visited[ny, nx] = True
+                        stack.append((ny, nx))
+
+            if area >= min_component_pixels:
+                boxes.append((area, x_min, y_min, x_max, y_max))
+
+    boxes.sort(reverse=True)
+    return [(x_min, y_min, x_max, y_max) for _, x_min, y_min, x_max, y_max in boxes]
+
+
 def mask_right_half(mask: np.ndarray, split_x: int) -> np.ndarray:
     out = np.zeros_like(mask, dtype=np.uint8)
     out[:, split_x:] = mask[:, split_x:]
@@ -115,7 +173,7 @@ def save_panel(
     label: str,
     left_mask: np.ndarray,
     right_mask: np.ndarray,
-    bbox: Optional[Tuple[int, int, int, int]],
+    bboxes: List[Tuple[int, int, int, int]],
     pred_box_right: np.ndarray,
     pred_text_right: np.ndarray,
     pred_joint_full: np.ndarray,
@@ -130,8 +188,7 @@ def save_panel(
     axes = axes.flatten()
 
     axes[0].imshow(image)
-    if bbox is not None:
-        x_min, y_min, x_max, y_max = bbox
+    for x_min, y_min, x_max, y_max in bboxes:
         rect = patches.Rectangle(
             (x_min, y_min),
             x_max - x_min,
@@ -141,7 +198,7 @@ def save_panel(
             facecolor="none",
         )
         axes[0].add_patch(rect)
-    axes[0].set_title(f"{label}\nLeft-half box prompt")
+    axes[0].set_title(f"{label}\nLeft-half multi-box prompt ({len(bboxes)} boxes)")
     axes[0].axis("off")
 
     axes[1].imshow(left_mask, cmap="gray")
@@ -203,10 +260,8 @@ def metrics_to_dict(pred: np.ndarray, gt: np.ndarray) -> Dict[str, float]:
     }
 
 
-def serialize_bbox(bbox: Optional[Tuple[int, int, int, int]]) -> Optional[List[int]]:
-    if bbox is None:
-        return None
-    return [int(v) for v in bbox]
+def serialize_bboxes(bboxes: List[Tuple[int, int, int, int]]) -> List[List[int]]:
+    return [[int(v) for v in bbox] for bbox in bboxes]
 
 
 def main() -> None:
@@ -218,6 +273,8 @@ def main() -> None:
     parser.add_argument("--split-fraction", type=float, default=0.5, help="Vertical split position as fraction of image width.")
     parser.add_argument("--label", type=str, default=None, help="Run only a single label from the pseudo-mask summary.")
     parser.add_argument("--max-side", type=int, default=None, help="Resize image and pseudo-masks so the longest side is at most this many pixels.")
+    parser.add_argument("--prompt-source", choices=["disk", "region"], default="disk", help="Which pseudo-mask variant to use when deriving left-side prompt boxes.")
+    parser.add_argument("--component-min-pixels", type=int, default=250, help="Minimum connected-component area kept when converting the left prompt mask into multiple boxes.")
     args = parser.parse_args()
 
     if not args.image_path.exists():
@@ -252,6 +309,8 @@ def main() -> None:
         print(f"Selected label: {selected_label}")
     if args.max_side:
         print(f"Max side resize: {args.max_side}")
+    print(f"Prompt source: {args.prompt_source}")
+    print(f"Min component pixels: {args.component_min_pixels}")
 
     experiment = {
         "image_path": str(args.image_path),
@@ -259,6 +318,8 @@ def main() -> None:
         "checkpoint": args.checkpoint,
         "split_fraction": args.split_fraction,
         "max_side": args.max_side,
+        "prompt_source": args.prompt_source,
+        "component_min_pixels": args.component_min_pixels,
         "labels": [],
     }
 
@@ -277,12 +338,18 @@ def main() -> None:
         available = ", ".join(item["label"] for item in summary["labels"])
         raise ValueError(f"Label not found in summary: {selected_label}. Available labels: {available}")
 
-    loaded_masks: List[np.ndarray] = []
+    eval_masks: List[np.ndarray] = []
+    prompt_masks: List[np.ndarray] = []
     for _, item in label_records:
-        region_mask_path = PROJECT_ROOT / item["region_mask_path"]
-        loaded_masks.append(load_binary_mask(region_mask_path))
+        region_mask_path = resolve_summary_asset_path(args.summary_path, item["region_mask_path"])
+        prompt_path_key = "disk_mask_path" if args.prompt_source == "disk" else "region_mask_path"
+        prompt_mask_path = resolve_summary_asset_path(args.summary_path, item[prompt_path_key])
+        eval_masks.append(load_binary_mask(region_mask_path))
+        prompt_masks.append(load_binary_mask(prompt_mask_path))
 
-    image, loaded_masks = resize_image_and_masks(image, loaded_masks, args.max_side)
+    image, resized_masks = resize_image_and_masks(image, eval_masks + prompt_masks, args.max_side)
+    eval_masks = resized_masks[: len(eval_masks)]
+    prompt_masks = resized_masks[len(eval_masks):]
     image_h, image_w = image.shape[:2]
     split_x = int(round(image_w * args.split_fraction))
     experiment["split_x"] = split_x
@@ -292,15 +359,16 @@ def main() -> None:
     sam3 = SAM3Model(confidence_threshold=0.1, checkpoint_path=args.checkpoint)
     inference_state = sam3.encode_image(image)
 
-    for (idx, item), gt_mask in zip(label_records, loaded_masks):
+    for (idx, item), gt_mask, prompt_mask in zip(label_records, eval_masks, prompt_masks):
         label = item["label"]
         color = COLORS[idx % len(COLORS)]
-        left_mask, right_mask = split_mask_left_right(gt_mask, split_x)
-        bbox = generate_bbox_from_mask(left_mask)
+        left_prompt_mask, _ = split_mask_left_right(prompt_mask, split_x)
+        _, right_mask = split_mask_left_right(gt_mask, split_x)
+        bboxes = generate_component_bboxes_from_mask(left_prompt_mask, min_component_pixels=args.component_min_pixels)
 
         pred_box = np.zeros_like(gt_mask, dtype=np.uint8)
-        if bbox is not None:
-            pred_box_raw = sam3.predict_box(inference_state, bbox, gt_mask.shape)
+        if bboxes:
+            pred_box_raw = sam3.predict_boxes(inference_state, bboxes, gt_mask.shape)
             if pred_box_raw is not None:
                 if pred_box_raw.shape != gt_mask.shape:
                     pred_box_raw = resize_mask(pred_box_raw, gt_mask.shape)
@@ -314,8 +382,8 @@ def main() -> None:
             pred_text = pred_text_raw.astype(np.uint8)
 
         pred_joint = np.zeros_like(gt_mask, dtype=np.uint8)
-        if bbox is not None:
-            pred_joint_raw = sam3.predict_box_text(inference_state, bbox, label, gt_mask.shape)
+        if bboxes:
+            pred_joint_raw = sam3.predict_boxes_text(inference_state, bboxes, label, gt_mask.shape)
             if pred_joint_raw is not None:
                 if pred_joint_raw.shape != gt_mask.shape:
                     pred_joint_raw = resize_mask(pred_joint_raw, gt_mask.shape)
@@ -331,7 +399,7 @@ def main() -> None:
 
         stem = f"{idx + 1:02d}_{label.lower().replace(' ', '_')}"
 
-        save_mask(left_mask, masks_dir / f"{stem}_left_prompt_mask.png")
+        save_mask(left_prompt_mask, masks_dir / f"{stem}_left_prompt_mask.png")
         save_mask(right_mask, masks_dir / f"{stem}_right_eval_mask.png")
         save_mask(pred_box_right, masks_dir / f"{stem}_pred_box_right.png")
         save_mask(pred_text_right, masks_dir / f"{stem}_pred_text_right.png")
@@ -344,9 +412,9 @@ def main() -> None:
         save_panel(
             image=image,
             label=label,
-            left_mask=left_mask,
+            left_mask=left_prompt_mask,
             right_mask=right_mask,
-            bbox=bbox,
+            bboxes=bboxes,
             pred_box_right=pred_box_right,
             pred_text_right=pred_text_right,
             pred_joint_full=pred_joint,
@@ -361,8 +429,9 @@ def main() -> None:
         experiment["labels"].append(
             {
                 "label": label,
-                "left_bbox_xyxy": serialize_bbox(bbox),
-                "left_positive_pixels": int(left_mask.sum()),
+                "left_bboxes_xyxy": serialize_bboxes(bboxes),
+                "n_left_boxes": int(len(bboxes)),
+                "left_positive_pixels": int(left_prompt_mask.sum()),
                 "right_positive_pixels": int(right_mask.sum()),
                 "box_prompt_metrics_right_half": box_metrics,
                 "text_prompt_metrics_right_half": text_metrics,
@@ -371,7 +440,7 @@ def main() -> None:
         )
 
         print(f"\nLabel: {label}")
-        print(f"  Left bbox: {bbox}")
+        print(f"  Left prompt boxes: {bboxes}")
         print(
             f"  Right-half box prompt: Dice={box_metrics['dice']:.3f}, "
             f"IoU={box_metrics['iou']:.3f}, Recall={box_metrics['recall']:.3f}"

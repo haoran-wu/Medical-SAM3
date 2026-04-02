@@ -57,6 +57,29 @@ def load_binary_mask(path: Path) -> np.ndarray:
     return (np.array(Image.open(path).convert("L")) > 127).astype(np.uint8)
 
 
+def resize_image_and_masks(
+    image: np.ndarray,
+    masks: List[np.ndarray],
+    max_side: Optional[int],
+) -> Tuple[np.ndarray, List[np.ndarray]]:
+    if max_side is None:
+        return image, masks
+
+    image_h, image_w = image.shape[:2]
+    current_max = max(image_h, image_w)
+    if current_max <= max_side:
+        return image, masks
+
+    scale = max_side / float(current_max)
+    new_h = max(1, int(round(image_h * scale)))
+    new_w = max(1, int(round(image_w * scale)))
+    resized_image = np.array(
+        Image.fromarray(image).resize((new_w, new_h), resample=Image.Resampling.BILINEAR)
+    )
+    resized_masks = [resize_mask(mask.astype(np.uint8), (new_h, new_w)).astype(np.uint8) for mask in masks]
+    return resized_image, resized_masks
+
+
 def split_mask_left_right(mask: np.ndarray, split_x: int) -> Tuple[np.ndarray, np.ndarray]:
     left = np.zeros_like(mask, dtype=np.uint8)
     right = np.zeros_like(mask, dtype=np.uint8)
@@ -194,6 +217,7 @@ def main() -> None:
     parser.add_argument("--checkpoint", type=str, default=None)
     parser.add_argument("--split-fraction", type=float, default=0.5, help="Vertical split position as fraction of image width.")
     parser.add_argument("--label", type=str, default=None, help="Run only a single label from the pseudo-mask summary.")
+    parser.add_argument("--max-side", type=int, default=None, help="Resize image and pseudo-masks so the longest side is at most this many pixels.")
     args = parser.parse_args()
 
     if not args.image_path.exists():
@@ -203,8 +227,6 @@ def main() -> None:
 
     summary = json.loads(args.summary_path.read_text())
     image = np.array(Image.open(args.image_path).convert("RGB"))
-    image_h, image_w = image.shape[:2]
-    split_x = int(round(image_w * args.split_fraction))
 
     selected_label = args.label.strip() if args.label else None
 
@@ -226,23 +248,22 @@ def main() -> None:
     print(f"Image: {args.image_path}")
     print(f"Pseudo-mask summary: {args.summary_path}")
     print(f"Checkpoint: {args.checkpoint or 'default SAM3 from Hugging Face'}")
-    print(f"Split x: {split_x} / {image_w}")
     if selected_label:
         print(f"Selected label: {selected_label}")
-
-    sam3 = SAM3Model(confidence_threshold=0.1, checkpoint_path=args.checkpoint)
-    inference_state = sam3.encode_image(image)
+    if args.max_side:
+        print(f"Max side resize: {args.max_side}")
 
     experiment = {
         "image_path": str(args.image_path),
         "summary_path": str(args.summary_path),
         "checkpoint": args.checkpoint,
         "split_fraction": args.split_fraction,
-        "split_x": split_x,
+        "max_side": args.max_side,
         "labels": [],
     }
 
     matched_any = False
+    label_records: List[Tuple[int, Dict[str, object]]] = []
 
     for idx, item in enumerate(summary["labels"]):
         label = item["label"]
@@ -250,9 +271,30 @@ def main() -> None:
             continue
 
         matched_any = True
-        color = COLORS[idx % len(COLORS)]
+        label_records.append((idx, item))
+
+    if selected_label and not matched_any:
+        available = ", ".join(item["label"] for item in summary["labels"])
+        raise ValueError(f"Label not found in summary: {selected_label}. Available labels: {available}")
+
+    loaded_masks: List[np.ndarray] = []
+    for _, item in label_records:
         region_mask_path = PROJECT_ROOT / item["region_mask_path"]
-        gt_mask = load_binary_mask(region_mask_path)
+        loaded_masks.append(load_binary_mask(region_mask_path))
+
+    image, loaded_masks = resize_image_and_masks(image, loaded_masks, args.max_side)
+    image_h, image_w = image.shape[:2]
+    split_x = int(round(image_w * args.split_fraction))
+    experiment["split_x"] = split_x
+    experiment["image_shape"] = [int(image_h), int(image_w)]
+    print(f"Split x: {split_x} / {image_w}")
+
+    sam3 = SAM3Model(confidence_threshold=0.1, checkpoint_path=args.checkpoint)
+    inference_state = sam3.encode_image(image)
+
+    for (idx, item), gt_mask in zip(label_records, loaded_masks):
+        label = item["label"]
+        color = COLORS[idx % len(COLORS)]
         left_mask, right_mask = split_mask_left_right(gt_mask, split_x)
         bbox = generate_bbox_from_mask(left_mask)
 
@@ -342,10 +384,6 @@ def main() -> None:
             f"  Right-half joint box+text: Dice={joint_metrics['dice']:.3f}, "
             f"IoU={joint_metrics['iou']:.3f}, Recall={joint_metrics['recall']:.3f}"
         )
-
-    if selected_label and not matched_any:
-        available = ", ".join(item["label"] for item in summary["labels"])
-        raise ValueError(f"Label not found in summary: {selected_label}. Available labels: {available}")
 
     (output_dir / "experiment_summary.json").write_text(json.dumps(experiment, indent=2))
     print("\nSaved outputs to:", output_dir)

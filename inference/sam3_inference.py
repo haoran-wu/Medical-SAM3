@@ -300,6 +300,47 @@ class SAM3Model:
 
         return None
 
+    def predict_box_text(
+        self,
+        inference_state: dict,
+        bbox: Tuple[int, int, int, int],
+        text_prompt: str,
+        img_size: Tuple[int, int],
+    ) -> Optional[np.ndarray]:
+        """
+        Run inference with a joint box + text prompt.
+
+        This uses the same encoded image state, first attaching the text prompt
+        and then the geometric prompt without resetting between them.
+        """
+        self.processor.reset_all_prompts(inference_state)
+
+        x_min, y_min, x_max, y_max = bbox
+        img_h, img_w = img_size
+        width = x_max - x_min
+        height = y_max - y_min
+
+        box_xywh = torch.tensor([x_min, y_min, width, height], dtype=torch.float32).view(1, 4)
+        box_cxcywh = box_xywh_to_cxcywh(box_xywh)
+        norm_box = normalize_bbox(box_cxcywh, img_w, img_h).flatten().tolist()
+
+        joint_state = self.processor.set_text_prompt(
+            state=inference_state,
+            prompt=text_prompt,
+        )
+        joint_state = self.processor.add_geometric_prompt(
+            state=joint_state,
+            box=norm_box,
+            label=True,
+        )
+
+        if joint_state["masks"] is not None and len(joint_state["masks"]) > 0:
+            best_idx = torch.argmax(joint_state["scores"]).item()
+            pred_mask = joint_state["masks"][best_idx].cpu().numpy() > 0
+            return pred_mask.astype(np.uint8)
+
+        return None
+
     def get_confidence(self, state: dict) -> float:
         """Get confidence score from state."""
         if state["scores"] is not None and len(state["scores"]) > 0:

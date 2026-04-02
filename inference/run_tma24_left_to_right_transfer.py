@@ -9,7 +9,8 @@ Workflow:
 - run SAM3 with:
   1. left-half box prompt
   2. text-only prompt
-- evaluate both predictions only on the right half of the image
+  3. left-half box + text joint prompt
+- evaluate predictions only on the right half of the image
 
 This provides a minimal test of whether information from the left side can help
 recover similar structures on the right side.
@@ -94,12 +95,15 @@ def save_panel(
     bbox: Optional[Tuple[int, int, int, int]],
     pred_box_right: np.ndarray,
     pred_text_right: np.ndarray,
+    pred_joint_full: np.ndarray,
+    pred_joint_right: np.ndarray,
     box_metrics: Dict[str, float],
     text_metrics: Dict[str, float],
+    joint_metrics: Dict[str, float],
     output_path: Path,
     color: Tuple[float, float, float],
 ) -> None:
-    fig, axes = plt.subplots(2, 3, figsize=(16, 10))
+    fig, axes = plt.subplots(2, 4, figsize=(20, 10))
     axes = axes.flatten()
 
     axes[0].imshow(image)
@@ -139,13 +143,25 @@ def save_panel(
     )
     axes[4].axis("off")
 
+    axes[5].imshow(make_overlay(image, pred_joint_full, color))
+    axes[5].set_title("Joint box+text prediction\n(full image overlay)")
+    axes[5].axis("off")
+
     combined = np.zeros_like(right_mask, dtype=np.uint8)
     combined[right_mask.astype(bool)] = 1
     combined[pred_box_right.astype(bool)] = 2
     combined[pred_text_right.astype(bool)] = 3
-    axes[5].imshow(combined, cmap="viridis")
-    axes[5].set_title("Right GT vs predictions\n1=GT 2=Box 3=Text")
-    axes[5].axis("off")
+    combined[pred_joint_right.astype(bool)] = 4
+    axes[6].imshow(make_overlay(image, pred_joint_right, color))
+    axes[6].set_title(
+        "Joint box+text (right half)\n"
+        f"Dice={joint_metrics['dice']:.3f}, IoU={joint_metrics['iou']:.3f}, Recall={joint_metrics['recall']:.3f}"
+    )
+    axes[6].axis("off")
+
+    axes[7].imshow(combined, cmap="viridis")
+    axes[7].set_title("Right GT vs predictions\n1=GT 2=Box 3=Text 4=Joint")
+    axes[7].axis("off")
 
     fig.tight_layout()
     fig.savefig(output_path, dpi=180, bbox_inches="tight")
@@ -241,11 +257,21 @@ def main() -> None:
                 pred_text_raw = resize_mask(pred_text_raw, gt_mask.shape)
             pred_text = pred_text_raw.astype(np.uint8)
 
+        pred_joint = np.zeros_like(gt_mask, dtype=np.uint8)
+        if bbox is not None:
+            pred_joint_raw = sam3.predict_box_text(inference_state, bbox, label, gt_mask.shape)
+            if pred_joint_raw is not None:
+                if pred_joint_raw.shape != gt_mask.shape:
+                    pred_joint_raw = resize_mask(pred_joint_raw, gt_mask.shape)
+                pred_joint = pred_joint_raw.astype(np.uint8)
+
         pred_box_right = mask_right_half(pred_box, split_x)
         pred_text_right = mask_right_half(pred_text, split_x)
+        pred_joint_right = mask_right_half(pred_joint, split_x)
 
         box_metrics = metrics_to_dict(pred_box_right, right_mask)
         text_metrics = metrics_to_dict(pred_text_right, right_mask)
+        joint_metrics = metrics_to_dict(pred_joint_right, right_mask)
 
         stem = f"{idx + 1:02d}_{label.lower().replace(' ', '_')}"
 
@@ -253,8 +279,12 @@ def main() -> None:
         save_mask(right_mask, masks_dir / f"{stem}_right_eval_mask.png")
         save_mask(pred_box_right, masks_dir / f"{stem}_pred_box_right.png")
         save_mask(pred_text_right, masks_dir / f"{stem}_pred_text_right.png")
+        save_mask(pred_joint, masks_dir / f"{stem}_pred_joint_full.png")
+        save_mask(pred_joint_right, masks_dir / f"{stem}_pred_joint_right.png")
         save_overlay(make_overlay(image, pred_box_right, color), overlays_dir / f"{stem}_pred_box_right.png")
         save_overlay(make_overlay(image, pred_text_right, color), overlays_dir / f"{stem}_pred_text_right.png")
+        save_overlay(make_overlay(image, pred_joint, color), overlays_dir / f"{stem}_pred_joint_full.png")
+        save_overlay(make_overlay(image, pred_joint_right, color), overlays_dir / f"{stem}_pred_joint_right.png")
         save_panel(
             image=image,
             label=label,
@@ -263,8 +293,11 @@ def main() -> None:
             bbox=bbox,
             pred_box_right=pred_box_right,
             pred_text_right=pred_text_right,
+            pred_joint_full=pred_joint,
+            pred_joint_right=pred_joint_right,
             box_metrics=box_metrics,
             text_metrics=text_metrics,
+            joint_metrics=joint_metrics,
             output_path=panels_dir / f"{stem}.png",
             color=color,
         )
@@ -277,6 +310,7 @@ def main() -> None:
                 "right_positive_pixels": int(right_mask.sum()),
                 "box_prompt_metrics_right_half": box_metrics,
                 "text_prompt_metrics_right_half": text_metrics,
+                "joint_box_text_metrics_right_half": joint_metrics,
             }
         )
 
@@ -289,6 +323,10 @@ def main() -> None:
         print(
             f"  Right-half text prompt: Dice={text_metrics['dice']:.3f}, "
             f"IoU={text_metrics['iou']:.3f}, Recall={text_metrics['recall']:.3f}"
+        )
+        print(
+            f"  Right-half joint box+text: Dice={joint_metrics['dice']:.3f}, "
+            f"IoU={joint_metrics['iou']:.3f}, Recall={joint_metrics['recall']:.3f}"
         )
 
     (output_dir / "experiment_summary.json").write_text(json.dumps(experiment, indent=2))

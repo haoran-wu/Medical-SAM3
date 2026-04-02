@@ -193,6 +193,7 @@ def main() -> None:
     parser.add_argument("--output-dir", type=Path, default=DEFAULT_OUTPUT_DIR)
     parser.add_argument("--checkpoint", type=str, default=None)
     parser.add_argument("--split-fraction", type=float, default=0.5, help="Vertical split position as fraction of image width.")
+    parser.add_argument("--label", type=str, default=None, help="Run only a single label from the pseudo-mask summary.")
     args = parser.parse_args()
 
     if not args.image_path.exists():
@@ -205,7 +206,12 @@ def main() -> None:
     image_h, image_w = image.shape[:2]
     split_x = int(round(image_w * args.split_fraction))
 
+    selected_label = args.label.strip() if args.label else None
+
     output_dir = args.output_dir
+    if selected_label:
+        label_stem = selected_label.lower().replace(" ", "_")
+        output_dir = output_dir.parent / f"{output_dir.name}_{label_stem}"
     masks_dir = output_dir / "masks"
     overlays_dir = output_dir / "overlays"
     panels_dir = output_dir / "panels"
@@ -221,6 +227,8 @@ def main() -> None:
     print(f"Pseudo-mask summary: {args.summary_path}")
     print(f"Checkpoint: {args.checkpoint or 'default SAM3 from Hugging Face'}")
     print(f"Split x: {split_x} / {image_w}")
+    if selected_label:
+        print(f"Selected label: {selected_label}")
 
     sam3 = SAM3Model(confidence_threshold=0.1, checkpoint_path=args.checkpoint)
     inference_state = sam3.encode_image(image)
@@ -234,8 +242,14 @@ def main() -> None:
         "labels": [],
     }
 
+    matched_any = False
+
     for idx, item in enumerate(summary["labels"]):
         label = item["label"]
+        if selected_label and label != selected_label:
+            continue
+
+        matched_any = True
         color = COLORS[idx % len(COLORS)]
         region_mask_path = PROJECT_ROOT / item["region_mask_path"]
         gt_mask = load_binary_mask(region_mask_path)
@@ -328,6 +342,10 @@ def main() -> None:
             f"  Right-half joint box+text: Dice={joint_metrics['dice']:.3f}, "
             f"IoU={joint_metrics['iou']:.3f}, Recall={joint_metrics['recall']:.3f}"
         )
+
+    if selected_label and not matched_any:
+        available = ", ".join(item["label"] for item in summary["labels"])
+        raise ValueError(f"Label not found in summary: {selected_label}. Available labels: {available}")
 
     (output_dir / "experiment_summary.json").write_text(json.dumps(experiment, indent=2))
     print("\nSaved outputs to:", output_dir)

@@ -43,6 +43,21 @@ def normalize_bbox(bbox_xywh, img_w, img_h):
     return normalized_bbox
 
 
+def normalize_points(points_xy, img_w, img_h):
+    """Normalize XY point coordinates to [0, 1]."""
+    if isinstance(points_xy, list):
+        normalized_points = []
+        for x, y in points_xy:
+            normalized_points.append([x / img_w, y / img_h])
+        return normalized_points
+
+    normalized_points = points_xy.clone()
+    assert normalized_points.size(-1) == 2, "points tensor must end with 2 values."
+    normalized_points[..., 0] /= img_w
+    normalized_points[..., 1] /= img_h
+    return normalized_points
+
+
 class SAM3Model:
     """Wrapper for SAM3 model inference."""
 
@@ -307,6 +322,44 @@ class SAM3Model:
 
         return None
 
+    def predict_points(
+        self,
+        inference_state: dict,
+        points: List[Tuple[int, int]],
+        point_labels: List[int],
+        img_size: Tuple[int, int],
+    ) -> Optional[np.ndarray]:
+        """
+        Run inference with multiple point prompts.
+        """
+        self.processor.reset_all_prompts(inference_state)
+
+        if not points:
+            return None
+
+        if "language_features" not in inference_state["backbone_out"]:
+            dummy_text_outputs = self.processor.model.backbone.forward_text(
+                ["visual"], device=self.device
+            )
+            inference_state["backbone_out"].update(dummy_text_outputs)
+
+        if "geometric_prompt" not in inference_state:
+            inference_state["geometric_prompt"] = self.processor.model._get_dummy_prompt()
+
+        img_h, img_w = img_size
+        norm_points = normalize_points(points, img_w, img_h)
+        points_tensor = torch.tensor(norm_points, device=self.device, dtype=torch.float32).view(-1, 1, 2)
+        labels_tensor = torch.tensor(point_labels, device=self.device, dtype=torch.long).view(-1, 1)
+        inference_state["geometric_prompt"].append_points(points_tensor, labels_tensor)
+        point_state = self.processor._forward_grounding(inference_state)
+
+        if point_state["masks"] is not None and len(point_state["masks"]) > 0:
+            best_idx = torch.argmax(point_state["scores"]).item()
+            pred_mask = point_state["masks"][best_idx].cpu().numpy() > 0
+            return pred_mask.astype(np.uint8)
+
+        return None
+
     def predict_box_text(
         self,
         inference_state: dict,
@@ -355,6 +408,40 @@ class SAM3Model:
             used_any = True
 
         if used_any and state["masks"] is not None and len(state["masks"]) > 0:
+            best_idx = torch.argmax(state["scores"]).item()
+            pred_mask = state["masks"][best_idx].cpu().numpy() > 0
+            return pred_mask.astype(np.uint8)
+
+        return None
+
+    def predict_points_text(
+        self,
+        inference_state: dict,
+        points: List[Tuple[int, int]],
+        point_labels: List[int],
+        text_prompt: str,
+        img_size: Tuple[int, int],
+    ) -> Optional[np.ndarray]:
+        """
+        Run inference with a joint text prompt and multiple point prompts.
+        """
+        self.processor.reset_all_prompts(inference_state)
+
+        if not points:
+            return None
+
+        img_h, img_w = img_size
+        state = self.processor.set_text_prompt(
+            state=inference_state,
+            prompt=text_prompt,
+        )
+        norm_points = normalize_points(points, img_w, img_h)
+        points_tensor = torch.tensor(norm_points, device=self.device, dtype=torch.float32).view(-1, 1, 2)
+        labels_tensor = torch.tensor(point_labels, device=self.device, dtype=torch.long).view(-1, 1)
+        state["geometric_prompt"].append_points(points_tensor, labels_tensor)
+        state = self.processor._forward_grounding(state)
+
+        if state["masks"] is not None and len(state["masks"]) > 0:
             best_idx = torch.argmax(state["scores"]).item()
             pred_mask = state["masks"][best_idx].cpu().numpy() > 0
             return pred_mask.astype(np.uint8)

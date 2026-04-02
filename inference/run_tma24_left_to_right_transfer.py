@@ -146,6 +146,28 @@ def generate_component_bboxes_from_mask(
     return [(x_min, y_min, x_max, y_max) for _, x_min, y_min, x_max, y_max in boxes]
 
 
+def sample_points_from_mask(
+    mask: np.ndarray,
+    max_points: int = 32,
+) -> Tuple[List[Tuple[int, int]], List[int]]:
+    """
+    Sample a deterministic subset of positive points from a prompt mask.
+    """
+    ys, xs = np.where(mask > 0)
+    if len(xs) == 0:
+        return [], []
+
+    coords = np.stack([xs, ys], axis=1)
+    if len(coords) > max_points:
+        rng = np.random.default_rng(0)
+        keep = np.sort(rng.choice(len(coords), size=max_points, replace=False))
+        coords = coords[keep]
+
+    points = [(int(x), int(y)) for x, y in coords]
+    labels = [1] * len(points)
+    return points, labels
+
+
 def mask_right_half(mask: np.ndarray, split_x: int) -> np.ndarray:
     out = np.zeros_like(mask, dtype=np.uint8)
     out[:, split_x:] = mask[:, split_x:]
@@ -174,6 +196,8 @@ def save_panel(
     left_mask: np.ndarray,
     right_mask: np.ndarray,
     bboxes: List[Tuple[int, int, int, int]],
+    point_coords: List[Tuple[int, int]],
+    prompt_kind: str,
     pred_box_right: np.ndarray,
     pred_text_right: np.ndarray,
     pred_joint_full: np.ndarray,
@@ -188,17 +212,24 @@ def save_panel(
     axes = axes.flatten()
 
     axes[0].imshow(image)
-    for x_min, y_min, x_max, y_max in bboxes:
-        rect = patches.Rectangle(
-            (x_min, y_min),
-            x_max - x_min,
-            y_max - y_min,
-            linewidth=2.5,
-            edgecolor=(1.0, 0.2, 0.2),
-            facecolor="none",
-        )
-        axes[0].add_patch(rect)
-    axes[0].set_title(f"{label}\nLeft-half multi-box prompt ({len(bboxes)} boxes)")
+    if prompt_kind == "box":
+        for x_min, y_min, x_max, y_max in bboxes:
+            rect = patches.Rectangle(
+                (x_min, y_min),
+                x_max - x_min,
+                y_max - y_min,
+                linewidth=2.5,
+                edgecolor=(1.0, 0.2, 0.2),
+                facecolor="none",
+            )
+            axes[0].add_patch(rect)
+        axes[0].set_title(f"{label}\nLeft-half multi-box prompt ({len(bboxes)} boxes)")
+    else:
+        if point_coords:
+            xs = [x for x, _ in point_coords]
+            ys = [y for _, y in point_coords]
+            axes[0].scatter(xs, ys, s=22, c=[(1.0, 0.2, 0.2)], edgecolors="white", linewidths=0.4)
+        axes[0].set_title(f"{label}\nLeft-half dense-point prompt ({len(point_coords)} points)")
     axes[0].axis("off")
 
     axes[1].imshow(left_mask, cmap="gray")
@@ -211,7 +242,7 @@ def save_panel(
 
     axes[3].imshow(make_overlay(image, pred_box_right, color))
     axes[3].set_title(
-        "Box prompt prediction (right half)\n"
+        f"{prompt_kind.capitalize()} prompt prediction (right half)\n"
         f"Dice={box_metrics['dice']:.3f}, IoU={box_metrics['iou']:.3f}, Recall={box_metrics['recall']:.3f}"
     )
     axes[3].axis("off")
@@ -275,6 +306,8 @@ def main() -> None:
     parser.add_argument("--max-side", type=int, default=None, help="Resize image and pseudo-masks so the longest side is at most this many pixels.")
     parser.add_argument("--prompt-source", choices=["disk", "region"], default="disk", help="Which pseudo-mask variant to use when deriving left-side prompt boxes.")
     parser.add_argument("--component-min-pixels", type=int, default=250, help="Minimum connected-component area kept when converting the left prompt mask into multiple boxes.")
+    parser.add_argument("--prompt-kind", choices=["box", "points"], default="box", help="Prompt geometry to derive from the left-half pseudo-mask.")
+    parser.add_argument("--max-points", type=int, default=32, help="Maximum number of positive prompt points when using --prompt-kind points.")
     args = parser.parse_args()
 
     if not args.image_path.exists():
@@ -291,6 +324,8 @@ def main() -> None:
     if selected_label:
         label_stem = selected_label.lower().replace(" ", "_")
         output_dir = output_dir.parent / f"{output_dir.name}_{label_stem}"
+    if args.prompt_kind != "box":
+        output_dir = output_dir.parent / f"{output_dir.name}_{args.prompt_kind}"
     masks_dir = output_dir / "masks"
     overlays_dir = output_dir / "overlays"
     panels_dir = output_dir / "panels"
@@ -311,6 +346,9 @@ def main() -> None:
         print(f"Max side resize: {args.max_side}")
     print(f"Prompt source: {args.prompt_source}")
     print(f"Min component pixels: {args.component_min_pixels}")
+    print(f"Prompt kind: {args.prompt_kind}")
+    if args.prompt_kind == "points":
+        print(f"Max points: {args.max_points}")
 
     experiment = {
         "image_path": str(args.image_path),
@@ -320,6 +358,8 @@ def main() -> None:
         "max_side": args.max_side,
         "prompt_source": args.prompt_source,
         "component_min_pixels": args.component_min_pixels,
+        "prompt_kind": args.prompt_kind,
+        "max_points": args.max_points,
         "labels": [],
     }
 
@@ -365,10 +405,17 @@ def main() -> None:
         left_prompt_mask, _ = split_mask_left_right(prompt_mask, split_x)
         _, right_mask = split_mask_left_right(gt_mask, split_x)
         bboxes = generate_component_bboxes_from_mask(left_prompt_mask, min_component_pixels=args.component_min_pixels)
+        point_coords, point_labels = sample_points_from_mask(left_prompt_mask, max_points=args.max_points)
 
         pred_box = np.zeros_like(gt_mask, dtype=np.uint8)
-        if bboxes:
+        if args.prompt_kind == "box" and bboxes:
             pred_box_raw = sam3.predict_boxes(inference_state, bboxes, gt_mask.shape)
+            if pred_box_raw is not None:
+                if pred_box_raw.shape != gt_mask.shape:
+                    pred_box_raw = resize_mask(pred_box_raw, gt_mask.shape)
+                pred_box = pred_box_raw.astype(np.uint8)
+        elif args.prompt_kind == "points" and point_coords:
+            pred_box_raw = sam3.predict_points(inference_state, point_coords, point_labels, gt_mask.shape)
             if pred_box_raw is not None:
                 if pred_box_raw.shape != gt_mask.shape:
                     pred_box_raw = resize_mask(pred_box_raw, gt_mask.shape)
@@ -382,8 +429,14 @@ def main() -> None:
             pred_text = pred_text_raw.astype(np.uint8)
 
         pred_joint = np.zeros_like(gt_mask, dtype=np.uint8)
-        if bboxes:
+        if args.prompt_kind == "box" and bboxes:
             pred_joint_raw = sam3.predict_boxes_text(inference_state, bboxes, label, gt_mask.shape)
+            if pred_joint_raw is not None:
+                if pred_joint_raw.shape != gt_mask.shape:
+                    pred_joint_raw = resize_mask(pred_joint_raw, gt_mask.shape)
+                pred_joint = pred_joint_raw.astype(np.uint8)
+        elif args.prompt_kind == "points" and point_coords:
+            pred_joint_raw = sam3.predict_points_text(inference_state, point_coords, point_labels, label, gt_mask.shape)
             if pred_joint_raw is not None:
                 if pred_joint_raw.shape != gt_mask.shape:
                     pred_joint_raw = resize_mask(pred_joint_raw, gt_mask.shape)
@@ -415,6 +468,8 @@ def main() -> None:
             left_mask=left_prompt_mask,
             right_mask=right_mask,
             bboxes=bboxes,
+            point_coords=point_coords,
+            prompt_kind=args.prompt_kind,
             pred_box_right=pred_box_right,
             pred_text_right=pred_text_right,
             pred_joint_full=pred_joint,
@@ -431,6 +486,8 @@ def main() -> None:
                 "label": label,
                 "left_bboxes_xyxy": serialize_bboxes(bboxes),
                 "n_left_boxes": int(len(bboxes)),
+                "left_prompt_points_xy": [[int(x), int(y)] for x, y in point_coords],
+                "n_left_points": int(len(point_coords)),
                 "left_positive_pixels": int(left_prompt_mask.sum()),
                 "right_positive_pixels": int(right_mask.sum()),
                 "box_prompt_metrics_right_half": box_metrics,
@@ -440,9 +497,12 @@ def main() -> None:
         )
 
         print(f"\nLabel: {label}")
-        print(f"  Left prompt boxes: {bboxes}")
+        if args.prompt_kind == "box":
+            print(f"  Left prompt boxes: {bboxes}")
+        else:
+            print(f"  Left prompt points: {point_coords[:10]}{' ...' if len(point_coords) > 10 else ''}")
         print(
-            f"  Right-half box prompt: Dice={box_metrics['dice']:.3f}, "
+            f"  Right-half {args.prompt_kind} prompt: Dice={box_metrics['dice']:.3f}, "
             f"IoU={box_metrics['iou']:.3f}, Recall={box_metrics['recall']:.3f}"
         )
         print(

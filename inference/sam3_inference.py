@@ -7,7 +7,7 @@ import sys
 import gc
 from contextlib import nullcontext
 from pathlib import Path
-from typing import Optional, Tuple
+from typing import List, Optional, Tuple
 
 import numpy as np
 import torch

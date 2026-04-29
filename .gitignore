@@ -29,6 +29,15 @@ Thumbs.db
 *.pt
 *.pth
 *.ckpt
+*.safetensors
+checkpoints/
+
+# Temporary / scratch
+tmp/
+
+# Presentations
+*.pptx
+*.ppt
 
 # Results and visualizations
 inference/results/

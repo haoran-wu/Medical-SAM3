@@ -4,7 +4,8 @@ Rasterize VisiumHD Exp1 GeoJSON annotations onto the hires tissue image.
 
 GeoJSON coordinates are full-resolution Space Ranger coordinates.
 Scale them by tissue_hires_scalef to map to tissue_hires_image.png.
-The annotations also use a bottom-left origin so y is flipped by default.
+No y-axis flip needed: Space Ranger uses top-left origin (y increases downward),
+same as PIL. Pass --flip-y only if your GeoJSON uses a different coordinate origin.
 """
 
 import argparse

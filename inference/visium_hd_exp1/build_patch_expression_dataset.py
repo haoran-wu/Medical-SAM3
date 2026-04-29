@@ -79,19 +79,24 @@ def normalize_expression_sparse(
     return X_log, gene_means, gene_stds
 
 
-def spatial_split(df: pd.DataFrame, val_frac: float = 0.15, test_frac: float = 0.10) -> np.ndarray:
+def stratified_random_split(
+    df: pd.DataFrame,
+    val_frac: float = 0.15,
+    test_frac: float = 0.10,
+    seed: int = 42,
+) -> np.ndarray:
+    """Stratified random split by region_label so each split has the same label proportions."""
+    rng = np.random.default_rng(seed)
     splits = np.full(len(df), "train", dtype=object)
-    x = df["hires_x"].values
-    y = df["hires_y"].values
-
-    x_thresh = np.quantile(x, 1.0 - test_frac)
-    is_test = x >= x_thresh
-    splits[is_test] = "test"
-
-    y_thresh = np.quantile(y[~is_test], 1.0 - val_frac)
-    is_val = (~is_test) & (y >= y_thresh)
-    splits[is_val] = "val"
-
+    for label in df["region_label"].unique():
+        idx = np.where(df["region_label"].values == label)[0]
+        rng.shuffle(idx)
+        n = len(idx)
+        n_test = max(1, int(n * test_frac))
+        n_val  = max(1, int(n * val_frac))
+        splits[idx[:n_test]]            = "test"
+        splits[idx[n_test:n_test+n_val]] = "val"
+        # remainder stays "train"
     return splits
 
 
@@ -170,8 +175,8 @@ def main() -> None:
     print(f"  gene_means range: {gene_means.min():.4f} .. {gene_means.max():.4f}")
     print(f"  gene_stds range:  {gene_stds.min():.4f} .. {gene_stds.max():.4f}")
 
-    print("\nAssigning spatial splits...")
-    df["split"] = spatial_split(df)
+    print("\nAssigning stratified random splits...")
+    df["split"] = stratified_random_split(df)
     print(f"  {df['split'].value_counts().to_dict()}")
 
     if args.sanity_check:

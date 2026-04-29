@@ -90,35 +90,42 @@ Notes:
 - group polygons by region label
 - save one binary mask per region and one combined colored overlay
 
-### Stage 2: SAM3 Baseline On New Sample
+### Stage 2: SAM3 / MedicalSAM3 Oracle Prompt Baseline On New Sample
 
-Goal: run the same baseline families used for TMA24, but on Exp1 regions.
+Goal: test whether SAM3 or MedicalSAM3 can recover expert tissue-region masks
+under favorable prompt conditions.
 
-Prompt/eval modes:
+Current result summary:
 
-- whole-region box prompt
-- text-only prompt
-- box + text prompt
-- dense box proposal sweep
-- optional cross-region held-out test if region masks are spatially suitable
+- The main completed baseline is tile-based multipoint prompting.
+- Positive points are sampled from expert GeoJSON-derived masks.
+- Negative points are sampled near the region bounding box but outside the mask.
+- The same expert mask is used as the evaluation target.
+- This is an oracle-style baseline, not an automatic recognition experiment.
 
 Outputs:
 
 ```text
-output/visium_hd_exp1/sam3_runs/base_sam3_whole_region/
-output/visium_hd_exp1/sam3_runs/base_sam3_dense_boxes/
-output/visium_hd_exp1/sam3_runs/medical_sam3_whole_region/
+output/visium_hd_exp1/final_sam3_medicalsam3_overlays/
+output/visium_hd_exp1/sam3_runs/base_sam3_multipoint/
+output/visium_hd_exp1/sam3_runs/base_sam3_multipoint_remaining_dev/
+output/visium_hd_exp1/sam3_runs/medical_sam3_multipoint/
+output/visium_hd_exp1/sam3_runs/medical_sam3_multipoint_remaining_dev/
 ```
 
-First labels to prioritize:
+Key finding:
 
-- tumor
-- stroma
-- immune infiltration
+Even with oracle multipoint prompts sampled from expert annotations, SAM3 and
+MedicalSAM3 only partially recover pathology-defined tissue regions. SAM3 tends
+to oversegment with higher recall and lower precision, while MedicalSAM3 tends
+to be more conservative with lower recall. This suggests the bottleneck is the
+segmentation backbone / task formulation rather than simply the prompt modality.
 
-Reason: these have enough polygons and are biologically meaningful. Rare labels
-such as `lung alveoli (normal adjacent)` can be kept for visualization but are
-not good first metrics.
+Detailed results and interpretation:
+
+```text
+docs/EXP1_SAM3_ORACLE_BASELINE_AND_DIRECTION_UPDATE.md
+```
 
 ### Stage 3: Expression Matrix And Spatial Labels
 
@@ -158,20 +165,23 @@ gene expression vector
 
 ### Stage 4: Gene Expression Methods On Exp1
 
-Once Stage 1-3 are stable, run the more novel methods:
+Once Stage 1-3 are stable, run the more novel methods. Based on the SAM3
+oracle-prompt baseline, these methods should emphasize retrieval, localization,
+and proposal ranking rather than assuming expression prompts can directly make
+SAM3 produce accurate pixel-level semantic masks.
 
 1. Gene expression to prompt space
-   - train small MLP from expression vector to prompt embedding or region query
-   - use region label supervision from GeoJSON masks
+   - high-risk as a direct `expression -> SAM prompt -> mask` route
+   - better framed as `expression -> region query / proposal score`
 
 2. H&E patch and expression alignment
    - crop H&E patches around 8um bins or aggregated local neighborhoods
    - train image encoder and expression encoder with contrastive loss
-   - retrieve image regions from gene-expression queries
+   - retrieve or localize image regions from gene-expression queries
 
 3. Expression exemplar
    - compute mean expression profile for labels such as tumor/stroma/immune
-   - use expression profile as query to find matching image regions
+   - use expression profile as query to find matching image patches or proposals
 
 ## Immediate Checks
 

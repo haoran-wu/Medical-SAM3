@@ -1,19 +1,19 @@
 #!/usr/bin/env python3
 """
-Run a left-to-right transfer experiment on TMA24 pseudo-masks.
+Run a cross-region transfer experiment on TMA24 pseudo-masks.
 
 Workflow:
 - take the final pseudo-mask for each label
-- split it into left-half prompt region and right-half evaluation region
-- derive a bounding box from the left-half mask
+- split it into one prompt region and one held-out evaluation region
+- derive prompts from the prompt-region mask
 - run SAM3 with:
-  1. left-half box prompt
+  1. held-in box/point prompt
   2. text-only prompt
-  3. left-half box + text joint prompt
-- evaluate predictions only on the right half of the image
+  3. held-in box/point + text joint prompt
+- evaluate predictions only on the held-out region
 
-This provides a minimal test of whether information from the left side can help
-recover similar structures on the right side.
+This provides a minimal test of whether information from one image region can
+help recover similar structures in a held-out region.
 """
 
 import argparse
@@ -96,12 +96,26 @@ def resize_image_and_masks(
     return resized_image, resized_masks
 
 
-def split_mask_left_right(mask: np.ndarray, split_x: int) -> Tuple[np.ndarray, np.ndarray]:
-    left = np.zeros_like(mask, dtype=np.uint8)
-    right = np.zeros_like(mask, dtype=np.uint8)
-    left[:, :split_x] = mask[:, :split_x]
-    right[:, split_x:] = mask[:, split_x:]
-    return left, right
+def split_mask_prompt_eval(mask: np.ndarray, direction: str, split_index: int) -> Tuple[np.ndarray, np.ndarray]:
+    prompt = np.zeros_like(mask, dtype=np.uint8)
+    eval_region = np.zeros_like(mask, dtype=np.uint8)
+
+    if direction == "left_to_right":
+        prompt[:, :split_index] = mask[:, :split_index]
+        eval_region[:, split_index:] = mask[:, split_index:]
+    elif direction == "right_to_left":
+        prompt[:, split_index:] = mask[:, split_index:]
+        eval_region[:, :split_index] = mask[:, :split_index]
+    elif direction == "top_to_bottom":
+        prompt[:split_index, :] = mask[:split_index, :]
+        eval_region[split_index:, :] = mask[split_index:, :]
+    elif direction == "bottom_to_top":
+        prompt[split_index:, :] = mask[split_index:, :]
+        eval_region[:split_index, :] = mask[:split_index, :]
+    else:
+        raise ValueError(f"Unsupported direction: {direction}")
+
+    return prompt, eval_region
 
 
 def generate_component_bboxes_from_mask(
@@ -146,9 +160,39 @@ def generate_component_bboxes_from_mask(
     return [(x_min, y_min, x_max, y_max) for _, x_min, y_min, x_max, y_max in boxes]
 
 
+def jitter_bboxes(
+    bboxes: List[Tuple[int, int, int, int]],
+    image_shape: Tuple[int, int],
+    max_shift_pixels: int,
+    seed: int,
+) -> List[Tuple[int, int, int, int]]:
+    """
+    Randomly shift each box by up to max_shift_pixels in x/y.
+    """
+    if max_shift_pixels <= 0:
+        return bboxes
+
+    height, width = image_shape
+    rng = np.random.default_rng(seed)
+    shifted: List[Tuple[int, int, int, int]] = []
+
+    for x_min, y_min, x_max, y_max in bboxes:
+        dx = int(rng.integers(-max_shift_pixels, max_shift_pixels + 1))
+        dy = int(rng.integers(-max_shift_pixels, max_shift_pixels + 1))
+        box_w = x_max - x_min
+        box_h = y_max - y_min
+
+        new_x_min = min(max(0, x_min + dx), max(0, width - 1 - box_w))
+        new_y_min = min(max(0, y_min + dy), max(0, height - 1 - box_h))
+        shifted.append((new_x_min, new_y_min, new_x_min + box_w, new_y_min + box_h))
+
+    return shifted
+
+
 def sample_points_from_mask(
     mask: np.ndarray,
     max_points: int = 32,
+    seed: int = 0,
 ) -> Tuple[List[Tuple[int, int]], List[int]]:
     """
     Sample a deterministic subset of positive points from a prompt mask.
@@ -159,7 +203,7 @@ def sample_points_from_mask(
 
     coords = np.stack([xs, ys], axis=1)
     if len(coords) > max_points:
-        rng = np.random.default_rng(0)
+        rng = np.random.default_rng(seed)
         keep = np.sort(rng.choice(len(coords), size=max_points, replace=False))
         coords = coords[keep]
 
@@ -168,9 +212,18 @@ def sample_points_from_mask(
     return points, labels
 
 
-def mask_right_half(mask: np.ndarray, split_x: int) -> np.ndarray:
+def mask_eval_region(mask: np.ndarray, direction: str, split_index: int) -> np.ndarray:
     out = np.zeros_like(mask, dtype=np.uint8)
-    out[:, split_x:] = mask[:, split_x:]
+    if direction == "left_to_right":
+        out[:, split_index:] = mask[:, split_index:]
+    elif direction == "right_to_left":
+        out[:, :split_index] = mask[:, :split_index]
+    elif direction == "top_to_bottom":
+        out[split_index:, :] = mask[split_index:, :]
+    elif direction == "bottom_to_top":
+        out[:split_index, :] = mask[:split_index, :]
+    else:
+        raise ValueError(f"Unsupported direction: {direction}")
     return out
 
 
@@ -193,20 +246,21 @@ def save_overlay(overlay: np.ndarray, path: Path) -> None:
 def save_panel(
     image: np.ndarray,
     label: str,
-    left_mask: np.ndarray,
-    right_mask: np.ndarray,
+    prompt_mask: np.ndarray,
+    eval_mask: np.ndarray,
     bboxes: List[Tuple[int, int, int, int]],
     point_coords: List[Tuple[int, int]],
     prompt_kind: str,
-    pred_box_right: np.ndarray,
-    pred_text_right: np.ndarray,
+    pred_box_eval: np.ndarray,
+    pred_text_eval: np.ndarray,
     pred_joint_full: np.ndarray,
-    pred_joint_right: np.ndarray,
+    pred_joint_eval: np.ndarray,
     box_metrics: Dict[str, float],
     text_metrics: Dict[str, float],
     joint_metrics: Dict[str, float],
     output_path: Path,
     color: Tuple[float, float, float],
+    direction: str,
 ) -> None:
     fig, axes = plt.subplots(2, 4, figsize=(20, 10))
     axes = axes.flatten()
@@ -223,33 +277,33 @@ def save_panel(
                 facecolor="none",
             )
             axes[0].add_patch(rect)
-        axes[0].set_title(f"{label}\nLeft-half multi-box prompt ({len(bboxes)} boxes)")
+        axes[0].set_title(f"{label}\n{direction} multi-box prompt ({len(bboxes)} boxes)")
     else:
         if point_coords:
             xs = [x for x, _ in point_coords]
             ys = [y for _, y in point_coords]
             axes[0].scatter(xs, ys, s=22, c=[(1.0, 0.2, 0.2)], edgecolors="white", linewidths=0.4)
-        axes[0].set_title(f"{label}\nLeft-half dense-point prompt ({len(point_coords)} points)")
+        axes[0].set_title(f"{label}\n{direction} dense-point prompt ({len(point_coords)} points)")
     axes[0].axis("off")
 
-    axes[1].imshow(left_mask, cmap="gray")
-    axes[1].set_title("Left pseudo-mask")
+    axes[1].imshow(prompt_mask, cmap="gray")
+    axes[1].set_title("Prompt-region pseudo-mask")
     axes[1].axis("off")
 
-    axes[2].imshow(right_mask, cmap="gray")
-    axes[2].set_title("Right pseudo-mask (eval GT)")
+    axes[2].imshow(eval_mask, cmap="gray")
+    axes[2].set_title("Held-out pseudo-mask (eval GT)")
     axes[2].axis("off")
 
-    axes[3].imshow(make_overlay(image, pred_box_right, color))
+    axes[3].imshow(make_overlay(image, pred_box_eval, color))
     axes[3].set_title(
-        f"{prompt_kind.capitalize()} prompt prediction (right half)\n"
+        f"{prompt_kind.capitalize()} prompt prediction (held-out)\n"
         f"Dice={box_metrics['dice']:.3f}, IoU={box_metrics['iou']:.3f}, Recall={box_metrics['recall']:.3f}"
     )
     axes[3].axis("off")
 
-    axes[4].imshow(make_overlay(image, pred_text_right, color))
+    axes[4].imshow(make_overlay(image, pred_text_eval, color))
     axes[4].set_title(
-        "Text prompt prediction (right half)\n"
+        "Text prompt prediction (held-out)\n"
         f"Dice={text_metrics['dice']:.3f}, IoU={text_metrics['iou']:.3f}, Recall={text_metrics['recall']:.3f}"
     )
     axes[4].axis("off")
@@ -258,20 +312,20 @@ def save_panel(
     axes[5].set_title("Joint box+text prediction\n(full image overlay)")
     axes[5].axis("off")
 
-    combined = np.zeros_like(right_mask, dtype=np.uint8)
-    combined[right_mask.astype(bool)] = 1
-    combined[pred_box_right.astype(bool)] = 2
-    combined[pred_text_right.astype(bool)] = 3
-    combined[pred_joint_right.astype(bool)] = 4
-    axes[6].imshow(make_overlay(image, pred_joint_right, color))
+    combined = np.zeros_like(eval_mask, dtype=np.uint8)
+    combined[eval_mask.astype(bool)] = 1
+    combined[pred_box_eval.astype(bool)] = 2
+    combined[pred_text_eval.astype(bool)] = 3
+    combined[pred_joint_eval.astype(bool)] = 4
+    axes[6].imshow(make_overlay(image, pred_joint_eval, color))
     axes[6].set_title(
-        "Joint box+text (right half)\n"
+        "Joint box+text (held-out)\n"
         f"Dice={joint_metrics['dice']:.3f}, IoU={joint_metrics['iou']:.3f}, Recall={joint_metrics['recall']:.3f}"
     )
     axes[6].axis("off")
 
     axes[7].imshow(combined, cmap="viridis")
-    axes[7].set_title("Right GT vs predictions\n1=GT 2=Box 3=Text 4=Joint")
+    axes[7].set_title("Held-out GT vs predictions\n1=GT 2=Box 3=Text 4=Joint")
     axes[7].axis("off")
 
     fig.tight_layout()
@@ -296,18 +350,27 @@ def serialize_bboxes(bboxes: List[Tuple[int, int, int, int]]) -> List[List[int]]
 
 
 def main() -> None:
-    parser = argparse.ArgumentParser(description="Run left-to-right transfer experiment using TMA24 pseudo-masks.")
+    parser = argparse.ArgumentParser(description="Run cross-region transfer experiment using TMA24 pseudo-masks.")
     parser.add_argument("--image-path", type=Path, default=DEFAULT_IMAGE_PATH)
     parser.add_argument("--summary-path", type=Path, default=DEFAULT_SUMMARY_PATH)
     parser.add_argument("--output-dir", type=Path, default=DEFAULT_OUTPUT_DIR)
     parser.add_argument("--checkpoint", type=str, default=None)
-    parser.add_argument("--split-fraction", type=float, default=0.5, help="Vertical split position as fraction of image width.")
+    parser.add_argument(
+        "--direction",
+        choices=["left_to_right", "right_to_left", "top_to_bottom", "bottom_to_top"],
+        default="left_to_right",
+        help="Prompt region to held-out evaluation region direction.",
+    )
+    parser.add_argument("--split-fraction", type=float, default=0.5, help="Split position as a fraction of width or height.")
     parser.add_argument("--label", type=str, default=None, help="Run only a single label from the pseudo-mask summary.")
     parser.add_argument("--max-side", type=int, default=None, help="Resize image and pseudo-masks so the longest side is at most this many pixels.")
-    parser.add_argument("--prompt-source", choices=["disk", "region"], default="disk", help="Which pseudo-mask variant to use when deriving left-side prompt boxes.")
-    parser.add_argument("--component-min-pixels", type=int, default=250, help="Minimum connected-component area kept when converting the left prompt mask into multiple boxes.")
-    parser.add_argument("--prompt-kind", choices=["box", "points"], default="box", help="Prompt geometry to derive from the left-half pseudo-mask.")
+    parser.add_argument("--prompt-source", choices=["disk", "region"], default="disk", help="Which pseudo-mask variant to use when deriving prompt-region geometry.")
+    parser.add_argument("--component-min-pixels", type=int, default=250, help="Minimum connected-component area kept when converting the prompt-region mask into multiple boxes.")
+    parser.add_argument("--prompt-kind", choices=["box", "points"], default="box", help="Prompt geometry to derive from the prompt-region pseudo-mask.")
+    parser.add_argument("--box-jitter-pixels", type=int, default=0, help="Randomly shift each prompt box by up to this many pixels.")
+    parser.add_argument("--box-jitter-seed", type=int, default=0, help="Random seed used when jittering prompt boxes.")
     parser.add_argument("--max-points", type=int, default=32, help="Maximum number of positive prompt points when using --prompt-kind points.")
+    parser.add_argument("--point-seed", type=int, default=0, help="Random seed used when sampling positive points from the prompt-region pseudo-mask.")
     args = parser.parse_args()
 
     if not args.image_path.exists():
@@ -335,11 +398,12 @@ def main() -> None:
     panels_dir.mkdir(parents=True, exist_ok=True)
 
     print("=" * 60)
-    print("TMA24 left-to-right transfer experiment")
+    print("TMA24 cross-region transfer experiment")
     print("=" * 60)
     print(f"Image: {args.image_path}")
     print(f"Pseudo-mask summary: {args.summary_path}")
     print(f"Checkpoint: {args.checkpoint or 'default SAM3 from Hugging Face'}")
+    print(f"Direction: {args.direction}")
     if selected_label:
         print(f"Selected label: {selected_label}")
     if args.max_side:
@@ -347,19 +411,27 @@ def main() -> None:
     print(f"Prompt source: {args.prompt_source}")
     print(f"Min component pixels: {args.component_min_pixels}")
     print(f"Prompt kind: {args.prompt_kind}")
+    if args.prompt_kind == "box":
+        print(f"Box jitter pixels: {args.box_jitter_pixels}")
+        print(f"Box jitter seed: {args.box_jitter_seed}")
     if args.prompt_kind == "points":
         print(f"Max points: {args.max_points}")
+        print(f"Point seed: {args.point_seed}")
 
     experiment = {
         "image_path": str(args.image_path),
         "summary_path": str(args.summary_path),
         "checkpoint": args.checkpoint,
+        "direction": args.direction,
         "split_fraction": args.split_fraction,
         "max_side": args.max_side,
         "prompt_source": args.prompt_source,
         "component_min_pixels": args.component_min_pixels,
         "prompt_kind": args.prompt_kind,
+        "box_jitter_pixels": args.box_jitter_pixels,
+        "box_jitter_seed": args.box_jitter_seed,
         "max_points": args.max_points,
+        "point_seed": args.point_seed,
         "labels": [],
     }
 
@@ -391,10 +463,13 @@ def main() -> None:
     eval_masks = resized_masks[: len(eval_masks)]
     prompt_masks = resized_masks[len(eval_masks):]
     image_h, image_w = image.shape[:2]
-    split_x = int(round(image_w * args.split_fraction))
-    experiment["split_x"] = split_x
+    split_axis = "x" if args.direction in ("left_to_right", "right_to_left") else "y"
+    split_base = image_w if split_axis == "x" else image_h
+    split_index = int(round(split_base * args.split_fraction))
+    experiment["split_axis"] = split_axis
+    experiment["split_index"] = split_index
     experiment["image_shape"] = [int(image_h), int(image_w)]
-    print(f"Split x: {split_x} / {image_w}")
+    print(f"Split {split_axis}: {split_index} / {split_base}")
 
     sam3 = SAM3Model(confidence_threshold=0.1, checkpoint_path=args.checkpoint)
     inference_state = sam3.encode_image(image)
@@ -402,10 +477,20 @@ def main() -> None:
     for (idx, item), gt_mask, prompt_mask in zip(label_records, eval_masks, prompt_masks):
         label = item["label"]
         color = COLORS[idx % len(COLORS)]
-        left_prompt_mask, _ = split_mask_left_right(prompt_mask, split_x)
-        _, right_mask = split_mask_left_right(gt_mask, split_x)
-        bboxes = generate_component_bboxes_from_mask(left_prompt_mask, min_component_pixels=args.component_min_pixels)
-        point_coords, point_labels = sample_points_from_mask(left_prompt_mask, max_points=args.max_points)
+        prompt_region_mask, _ = split_mask_prompt_eval(prompt_mask, args.direction, split_index)
+        _, eval_region_mask = split_mask_prompt_eval(gt_mask, args.direction, split_index)
+        original_bboxes = generate_component_bboxes_from_mask(prompt_region_mask, min_component_pixels=args.component_min_pixels)
+        bboxes = jitter_bboxes(
+            original_bboxes,
+            gt_mask.shape,
+            max_shift_pixels=args.box_jitter_pixels,
+            seed=args.box_jitter_seed,
+        )
+        point_coords, point_labels = sample_points_from_mask(
+            prompt_region_mask,
+            max_points=args.max_points,
+            seed=args.point_seed,
+        )
 
         pred_box = np.zeros_like(gt_mask, dtype=np.uint8)
         if args.prompt_kind == "box" and bboxes:
@@ -442,75 +527,81 @@ def main() -> None:
                     pred_joint_raw = resize_mask(pred_joint_raw, gt_mask.shape)
                 pred_joint = pred_joint_raw.astype(np.uint8)
 
-        pred_box_right = mask_right_half(pred_box, split_x)
-        pred_text_right = mask_right_half(pred_text, split_x)
-        pred_joint_right = mask_right_half(pred_joint, split_x)
+        pred_box_eval = mask_eval_region(pred_box, args.direction, split_index)
+        pred_text_eval = mask_eval_region(pred_text, args.direction, split_index)
+        pred_joint_eval = mask_eval_region(pred_joint, args.direction, split_index)
 
-        box_metrics = metrics_to_dict(pred_box_right, right_mask)
-        text_metrics = metrics_to_dict(pred_text_right, right_mask)
-        joint_metrics = metrics_to_dict(pred_joint_right, right_mask)
+        box_metrics = metrics_to_dict(pred_box_eval, eval_region_mask)
+        text_metrics = metrics_to_dict(pred_text_eval, eval_region_mask)
+        joint_metrics = metrics_to_dict(pred_joint_eval, eval_region_mask)
 
         stem = f"{idx + 1:02d}_{label.lower().replace(' ', '_')}"
 
-        save_mask(left_prompt_mask, masks_dir / f"{stem}_left_prompt_mask.png")
-        save_mask(right_mask, masks_dir / f"{stem}_right_eval_mask.png")
-        save_mask(pred_box_right, masks_dir / f"{stem}_pred_box_right.png")
-        save_mask(pred_text_right, masks_dir / f"{stem}_pred_text_right.png")
+        save_mask(prompt_region_mask, masks_dir / f"{stem}_prompt_region_mask.png")
+        save_mask(eval_region_mask, masks_dir / f"{stem}_heldout_eval_mask.png")
+        save_mask(pred_box_eval, masks_dir / f"{stem}_pred_{args.prompt_kind}_heldout.png")
+        save_mask(pred_text_eval, masks_dir / f"{stem}_pred_text_heldout.png")
         save_mask(pred_joint, masks_dir / f"{stem}_pred_joint_full.png")
-        save_mask(pred_joint_right, masks_dir / f"{stem}_pred_joint_right.png")
-        save_overlay(make_overlay(image, pred_box_right, color), overlays_dir / f"{stem}_pred_box_right.png")
-        save_overlay(make_overlay(image, pred_text_right, color), overlays_dir / f"{stem}_pred_text_right.png")
+        save_mask(pred_joint_eval, masks_dir / f"{stem}_pred_joint_heldout.png")
+        save_overlay(make_overlay(image, pred_box_eval, color), overlays_dir / f"{stem}_pred_{args.prompt_kind}_heldout.png")
+        save_overlay(make_overlay(image, pred_text_eval, color), overlays_dir / f"{stem}_pred_text_heldout.png")
         save_overlay(make_overlay(image, pred_joint, color), overlays_dir / f"{stem}_pred_joint_full.png")
-        save_overlay(make_overlay(image, pred_joint_right, color), overlays_dir / f"{stem}_pred_joint_right.png")
+        save_overlay(make_overlay(image, pred_joint_eval, color), overlays_dir / f"{stem}_pred_joint_heldout.png")
         save_panel(
             image=image,
             label=label,
-            left_mask=left_prompt_mask,
-            right_mask=right_mask,
+            prompt_mask=prompt_region_mask,
+            eval_mask=eval_region_mask,
             bboxes=bboxes,
             point_coords=point_coords,
             prompt_kind=args.prompt_kind,
-            pred_box_right=pred_box_right,
-            pred_text_right=pred_text_right,
+            pred_box_eval=pred_box_eval,
+            pred_text_eval=pred_text_eval,
             pred_joint_full=pred_joint,
-            pred_joint_right=pred_joint_right,
+            pred_joint_eval=pred_joint_eval,
             box_metrics=box_metrics,
             text_metrics=text_metrics,
             joint_metrics=joint_metrics,
             output_path=panels_dir / f"{stem}.png",
             color=color,
+            direction=args.direction,
         )
 
         experiment["labels"].append(
             {
                 "label": label,
-                "left_bboxes_xyxy": serialize_bboxes(bboxes),
-                "n_left_boxes": int(len(bboxes)),
-                "left_prompt_points_xy": [[int(x), int(y)] for x, y in point_coords],
-                "n_left_points": int(len(point_coords)),
-                "left_positive_pixels": int(left_prompt_mask.sum()),
-                "right_positive_pixels": int(right_mask.sum()),
+                "direction": args.direction,
+                "original_prompt_bboxes_xyxy": serialize_bboxes(original_bboxes),
+                "prompt_bboxes_xyxy": serialize_bboxes(bboxes),
+                "n_prompt_boxes": int(len(bboxes)),
+                "prompt_points_xy": [[int(x), int(y)] for x, y in point_coords],
+                "n_prompt_points": int(len(point_coords)),
+                "prompt_positive_pixels": int(prompt_region_mask.sum()),
+                "heldout_positive_pixels": int(eval_region_mask.sum()),
                 "box_prompt_metrics_right_half": box_metrics,
                 "text_prompt_metrics_right_half": text_metrics,
                 "joint_box_text_metrics_right_half": joint_metrics,
+                "prompt_metrics_heldout": box_metrics,
+                "text_metrics_heldout": text_metrics,
+                "joint_metrics_heldout": joint_metrics,
             }
         )
 
         print(f"\nLabel: {label}")
         if args.prompt_kind == "box":
-            print(f"  Left prompt boxes: {bboxes}")
+            print(f"  Prompt boxes: {bboxes}")
         else:
-            print(f"  Left prompt points: {point_coords[:10]}{' ...' if len(point_coords) > 10 else ''}")
+            print(f"  Prompt points: {point_coords[:10]}{' ...' if len(point_coords) > 10 else ''}")
         print(
-            f"  Right-half {args.prompt_kind} prompt: Dice={box_metrics['dice']:.3f}, "
+            f"  Held-out {args.prompt_kind} prompt: Dice={box_metrics['dice']:.3f}, "
             f"IoU={box_metrics['iou']:.3f}, Recall={box_metrics['recall']:.3f}"
         )
         print(
-            f"  Right-half text prompt: Dice={text_metrics['dice']:.3f}, "
+            f"  Held-out text prompt: Dice={text_metrics['dice']:.3f}, "
             f"IoU={text_metrics['iou']:.3f}, Recall={text_metrics['recall']:.3f}"
         )
         print(
-            f"  Right-half joint box+text: Dice={joint_metrics['dice']:.3f}, "
+            f"  Held-out joint box+text: Dice={joint_metrics['dice']:.3f}, "
             f"IoU={joint_metrics['iou']:.3f}, Recall={joint_metrics['recall']:.3f}"
         )
 

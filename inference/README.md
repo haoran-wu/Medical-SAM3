@@ -35,6 +35,24 @@ python run_medsam3_evaluation.py \
 
 **Options:** `--max-samples N`, `--datasets "Dataset1,Dataset2"`
 
+## TMA24 Prompt Experiments
+
+The TMA24 experiments are indexed in `TMA24_EXPERIMENTS.md`.
+
+Whole-image text/box prompt test:
+
+```bash
+python run_tma24_whole_image_prompts.py \
+    --checkpoint ../checkpoints/Medical-SAM3/checkpoint.pt
+```
+
+Left-to-right transfer test:
+
+```bash
+python run_tma24_left_to_right_transfer.py \
+    --checkpoint ../checkpoints/Medical-SAM3/checkpoint.pt
+```
+
 ## Single-image spatialLIBD inference
 
 This repo also includes a single-image inference entrypoint for the current

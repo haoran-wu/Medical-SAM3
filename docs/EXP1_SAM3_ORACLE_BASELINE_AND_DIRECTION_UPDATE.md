@@ -86,6 +86,12 @@ tables/exp1_sam3_medicalsam3_multipoint_metrics.csv
 tables/exp1_sam3_medicalsam3_multipoint_metrics.md
 ```
 
+Related note:
+
+```text
+docs/EXP1_TILE_SIZE_ABLATION.md
+```
+
 | Label | SAM3 Dice | MedicalSAM3 Dice | SAM3 IoU | MedicalSAM3 IoU | SAM3 Precision | MedicalSAM3 Precision | SAM3 Recall | MedicalSAM3 Recall |
 | --- | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: |
 | Lung Bronchiola | 0.080 | 0.470 | 0.041 | 0.307 | 0.050 | 0.947 | 0.203 | 0.313 |
@@ -166,6 +172,11 @@ Likely reasons:
 
 5. MedicalSAM3 may be medical-domain tuned, but its training masks may not match
    these VisiumHD lung cancer semantic region annotations.
+
+6. Increasing tile size from `1024` to `1536` does not fix the problem. Dice
+   decreases while recall tends to rise, which suggests that larger context is
+   mostly encouraging broader expansion rather than more accurate semantic
+   segmentation.
 
 ## Consequence For The Project
 
@@ -287,4 +298,3 @@ More realistic options:
 
 The correct validation split should be held-out TMA / held-out patient, not
 random patch split, because patches from the same section are highly correlated.
-

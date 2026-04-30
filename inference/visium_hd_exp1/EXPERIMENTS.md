@@ -111,6 +111,17 @@ All scripts use tile-based inference to avoid quality loss from aggressive downs
 Per-region Dice against GeoJSON ground truth masks (same masks used in Stage 1).
 Report mean Dice over tumor, stroma, immune infiltration (the three priority labels).
 
+Tile-size ablation note:
+
+```text
+docs/EXP1_TILE_SIZE_ABLATION.md
+```
+
+Current tile-size finding: increasing the tile size from `1024/128` to
+`1536/256` on a 4-label subset reduced Dice while often increasing recall,
+which suggests that larger context alone does not solve the mismatch between
+SAM-style segmentation and pathology-defined semantic tissue regions.
+
 ---
 
 ## SAM3 Baseline A: Multi-Point Prompts

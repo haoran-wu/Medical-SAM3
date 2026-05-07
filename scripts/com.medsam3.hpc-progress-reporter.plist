@@ -1,0 +1,61 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN"
+  "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+  <key>Label</key>
+  <string>com.medsam3.hpc-progress-reporter</string>
+
+  <key>WorkingDirectory</key>
+  <string>/Users/haoranwu/Desktop/Yan_Lab_Research/Medical-SAM3</string>
+
+  <key>ProgramArguments</key>
+  <array>
+    <string>/usr/bin/python3</string>
+    <string>-u</string>
+    <string>/Users/haoranwu/.local/bin/medsam3/hpc_progress_reporter.py</string>
+    <string>--watch</string>
+    <string>--interval</string>
+    <string>30</string>
+    <string>--include-logs</string>
+    <string>--analyze-on-change</string>
+    <string>--analyze-on-failure</string>
+    <string>--analysis-dir</string>
+    <string>/Users/haoranwu/Desktop/Yan_Lab_Research/Medical-SAM3/output/hpc_monitoring/analysis</string>
+    <string>--analysis-log-lines</string>
+    <string>100</string>
+    <string>--log-dir</string>
+    <string>/nfs/roberts/project/pi_xy48/hw646/Medical-SAM3/results/visium_hd_exp1/logs</string>
+    <string>--extra-log-dirs</string>
+    <string>/nfs/roberts/scratch/pi_xy48/hw646/Medical-SAM3/visium_hd_exp1/logs</string>
+    <string>--notify-local-on</string>
+    <string>change</string>
+    <string>--email-to</string>
+    <string>vettel.hwu@gmail.com</string>
+    <string>--email-on</string>
+    <string>never</string>
+    <string>--state-file</string>
+    <string>/Users/haoranwu/.hpc_progress_reporter_state.json</string>
+    <string>--local-log</string>
+    <string>/Users/haoranwu/.hpc_progress_reporter.log</string>
+  </array>
+
+  <key>RunAtLoad</key>
+  <true/>
+
+  <key>KeepAlive</key>
+  <true/>
+
+  <key>StandardOutPath</key>
+  <string>/Users/haoranwu/.hpc_progress_reporter.stdout</string>
+
+  <key>StandardErrorPath</key>
+  <string>/Users/haoranwu/.hpc_progress_reporter.stderr</string>
+
+  <key>EnvironmentVariables</key>
+  <dict>
+    <key>PATH</key>
+    <string>/usr/local/bin:/opt/homebrew/bin:/usr/bin:/bin:/usr/sbin:/sbin</string>
+  </dict>
+</dict>
+</plist>

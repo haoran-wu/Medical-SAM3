@@ -30,7 +30,7 @@ Usage:
 
 import argparse
 from pathlib import Path
-from typing import Optional, Tuple
+from typing import Optional, Sequence, Tuple
 
 import numpy as np
 import pandas as pd
@@ -229,18 +229,26 @@ try:
             scaler_npz: Path,
             image_path: Path,
             patch_size: int = 64,
+            crop_size: Optional[int] = None,
+            input_size: Optional[int] = None,
             split: Optional[str] = None,
+            include_labels: Optional[Sequence[str]] = None,
             augment: bool = False,
         ) -> None:
             from PIL import Image
 
-            self.patch_size = patch_size
+            self.crop_size = crop_size if crop_size is not None else patch_size
+            self.input_size = input_size if input_size is not None else patch_size
+            self.patch_size = self.input_size
 
             df = pd.read_csv(items_csv, index_col="item_idx")
             if split is not None:
                 df = df[df["split"] == split]
                 # Keep item_idx as the index (do NOT reset) — it is used to
                 # index into expr_npz which is aligned to the original item order.
+            if include_labels is not None:
+                include_set = set(include_labels)
+                df = df[df["region_label"].isin(include_set)]
             self.df = df  # index = original item_idx, used in __getitem__
 
             self.X = sp.load_npz(str(expr_npz))  # sparse [total_n_items, n_genes]
@@ -260,6 +268,7 @@ try:
             normalize = T.Normalize(mean=IMAGENET_MEAN, std=IMAGENET_STD)
             if augment:
                 self.transform = T.Compose([
+                    T.Resize((self.input_size, self.input_size)),
                     T.RandomHorizontalFlip(),
                     T.RandomVerticalFlip(),
                     T.ColorJitter(brightness=0.2, contrast=0.2, saturation=0.1),
@@ -267,7 +276,11 @@ try:
                     normalize,
                 ])
             else:
-                self.transform = T.Compose([T.ToTensor(), normalize])
+                self.transform = T.Compose([
+                    T.Resize((self.input_size, self.input_size)),
+                    T.ToTensor(),
+                    normalize,
+                ])
 
         def __len__(self) -> int:
             return len(self.df)
@@ -277,13 +290,13 @@ try:
 
             row = self.df.iloc[idx]
             cx, cy = int(round(row["hires_x"])), int(round(row["hires_y"]))
-            half = self.patch_size // 2
+            half = self.crop_size // 2
             x0 = max(0, cx - half);  y0 = max(0, cy - half)
-            x1 = min(self.img_w, x0 + self.patch_size)
-            y1 = min(self.img_h, y0 + self.patch_size)
+            x1 = min(self.img_w, x0 + self.crop_size)
+            y1 = min(self.img_h, y0 + self.crop_size)
             patch = self.image.crop((x0, y0, x1, y1))
-            if patch.size != (self.patch_size, self.patch_size):
-                patch = patch.resize((self.patch_size, self.patch_size), Image.Resampling.BILINEAR)
+            if patch.size != (self.crop_size, self.crop_size):
+                patch = patch.resize((self.crop_size, self.crop_size), Image.Resampling.BILINEAR)
 
             patch_tensor = self.transform(patch)
 

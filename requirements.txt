@@ -20,6 +20,9 @@ matplotlib>=3.7.0
 
 # HuggingFace for model loading
 huggingface_hub>=0.20.0
+timm>=1.0.0
+# Optional for CONCH backbone support:
+# git+https://github.com/Mahmoodlab/CONCH.git
 
 # SAM3 (install from source)
 # git+https://github.com/facebookresearch/sam3.git

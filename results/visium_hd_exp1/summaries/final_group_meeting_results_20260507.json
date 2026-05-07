@@ -1,0 +1,48 @@
+{
+  "created_local": "2026-05-07",
+  "status": {
+    "all_required_experiments_complete": true,
+    "hpc_queue_empty_at_check": true,
+    "training_rows": 33,
+    "retrieval_rows": 28,
+    "oom_retries_completed": ["11039815", "11040086", "11045911"]
+  },
+  "hpc_archive": {
+    "markdown": "/nfs/roberts/project/pi_xy48/hw646/Medical-SAM3/results/visium_hd_exp1/summaries/final_group_meeting_results_20260507.md",
+    "json": "/nfs/roberts/project/pi_xy48/hw646/Medical-SAM3/results/visium_hd_exp1/summaries/final_group_meeting_results_20260507.json",
+    "latest_snapshot": "/nfs/roberts/project/pi_xy48/hw646/Medical-SAM3/results/visium_hd_exp1/summaries/latest_results_snapshot.json",
+    "latest_training_csv": "/nfs/roberts/project/pi_xy48/hw646/Medical-SAM3/results/visium_hd_exp1/summaries/latest_training_summary.csv",
+    "latest_retrieval_csv": "/nfs/roberts/project/pi_xy48/hw646/Medical-SAM3/results/visium_hd_exp1/summaries/latest_retrieval_summary.csv"
+  },
+  "presentation": {
+    "pptx": "/Users/haoranwu/Desktop/Yan_Lab_Research/Presentation/Medical_SAM3_GroupMeeting_20260507/Medical_SAM3_Training_Ablation_GroupMeeting_20260507.pptx",
+    "project_copy": "/Users/haoranwu/Desktop/Yan_Lab_Research/Medical-SAM3/inference/visium_hd_exp1/Medical_SAM3_Training_Ablation_GroupMeeting_20260507.pptx",
+    "slides": 21,
+    "tables": 30,
+    "missing_figure_placeholders": 0,
+    "notion": "https://www.notion.so/3596bfe3ade481599fcbf2b2bd2f1eea"
+  },
+  "main_results": {
+    "training_strategy": {
+      "frozen_constant": {"expr_acc": 0.7568, "macro_f1": 0.6799, "image_acc": 0.6912},
+      "frozen_warmup_cosine": {"expr_acc": 0.7532, "macro_f1": 0.6796, "image_acc": 0.6908},
+      "last1_warmup_cosine": {"expr_acc": 0.7652, "macro_f1": 0.6929, "image_acc": 0.7920},
+      "last2_warmup_cosine": {"expr_acc": 0.7652, "macro_f1": 0.6945, "image_acc": 0.8312},
+      "giga8_last2_warmup_cosine": {"expr_acc": 0.6316, "macro_f1": 0.4512, "image_acc": 0.7084}
+    },
+    "retrieval_3class": {
+      "gigapath_ce_only": {"r1": 0.745, "r5": 0.811, "r10": 0.848, "fused_r1": 0.856},
+      "gigapath_infonce_010": {"r1": 0.722, "r5": 0.858, "r10": 0.900, "fused_r1": 0.858},
+      "last1_finetune": {"r1": 0.741, "r5": 0.833, "r10": 0.870, "fused_r1": 0.874},
+      "last2_finetune": {"r1": 0.728, "r5": 0.837, "r10": 0.865, "fused_r1": 0.880}
+    },
+    "retrieval_gigapath_8class": {
+      "ce_only": {"r1": 0.605, "r5": 0.719, "r10": 0.754, "fused_r1": 0.842},
+      "infonce_005": {"r1": 0.601, "r5": 0.729, "r10": 0.768, "fused_r1": 0.843},
+      "infonce_010": {"r1": 0.613, "r5": 0.730, "r10": 0.769, "fused_r1": 0.841},
+      "infonce_020": {"r1": 0.603, "r5": 0.737, "r10": 0.777, "fused_r1": 0.842},
+      "infonce_050": {"r1": 0.587, "r5": 0.720, "r10": 0.757, "fused_r1": 0.844},
+      "infonce_only": {"r1": 0.538, "r5": 0.724, "r10": 0.775, "fused_r1": 0.843}
+    }
+  }
+}

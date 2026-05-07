@@ -29,7 +29,7 @@ import numpy as np
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
-from torch.utils.data import DataLoader
+from torch.utils.data import DataLoader, Subset
 
 PROJECT_ROOT = Path(__file__).resolve().parent.parent.parent
 DATA_DIR = Path("/vast/palmer/pi/xiting_yan/hw568/collections_spatial_datasets/VisiumHD_Human_Lung/Exp1")
@@ -72,18 +72,24 @@ class ExpressionEncoder(nn.Module):
 
 
 class ImageEncoder(nn.Module):
-    def __init__(self, out_dim: int = 128, freeze_backbone: bool = True) -> None:
+    def __init__(
+        self,
+        out_dim: int = 128,
+        freeze_backbone: bool = True,
+        image_backbone: str = "resnet50",
+    ) -> None:
         super().__init__()
-        from torchvision.models import resnet50, ResNet50_Weights
-        backbone = resnet50(weights=ResNet50_Weights.IMAGENET1K_V2)
-        self.backbone = nn.Sequential(*list(backbone.children())[:-1])  # drop final FC
-        self.proj = ProjectionHead(2048, 256, out_dim)
+        from image_backbones import create_image_backbone
+
+        self.backbone_name = image_backbone
+        self.backbone, self.feature_dim = create_image_backbone(image_backbone)
+        self.proj = ProjectionHead(self.feature_dim, 256, out_dim)
         if freeze_backbone:
             for p in self.backbone.parameters():
                 p.requires_grad_(False)
 
     def forward(self, x: torch.Tensor) -> torch.Tensor:
-        feat = self.backbone(x).flatten(1)
+        feat = self.backbone(x)
         return self.proj(feat)
 
     def unfreeze_backbone(self) -> None:
@@ -140,6 +146,22 @@ def run_epoch(loader: DataLoader, img_enc: ImageEncoder, expr_enc: ExpressionEnc
     return total_loss / len(loader.dataset)
 
 
+def json_ready(value):
+    if isinstance(value, Path):
+        return str(value)
+    if isinstance(value, dict):
+        return {str(k): json_ready(v) for k, v in value.items()}
+    if isinstance(value, (list, tuple)):
+        return [json_ready(v) for v in value]
+    if isinstance(value, np.integer):
+        return int(value)
+    if isinstance(value, np.floating):
+        return float(value)
+    if isinstance(value, np.ndarray):
+        return value.tolist()
+    return value
+
+
 # ─── Main ────────────────────────────────────────────────────────────────────
 
 def main() -> None:
@@ -150,6 +172,12 @@ def main() -> None:
     parser.add_argument("--image-path", type=Path, default=DEFAULT_IMAGE_PATH)
     parser.add_argument("--output-dir", type=Path, default=PROJECT_ROOT / "output" / "visium_hd_exp1" / "contrastive_checkpoints")
     parser.add_argument("--patch-size", type=int, default=64)
+    parser.add_argument("--crop-size", type=int, default=None,
+                        help="Hires H&E pixels to crop around each bin")
+    parser.add_argument("--input-size", type=int, default=None,
+                        help="Pixel size after resizing the crop for the image backbone")
+    parser.add_argument("--image-backbone", type=str, default="resnet50",
+                        choices=["resnet50", "gigapath", "uni", "conch", "virchow", "virchow2", "musk"])
     parser.add_argument("--embed-dim", type=int, default=128)
     parser.add_argument("--batch-size", type=int, default=256)
     parser.add_argument("--freeze-epochs", type=int, default=30,
@@ -161,8 +189,14 @@ def main() -> None:
     parser.add_argument("--tau", type=float, default=0.07, help="InfoNCE temperature (fixed)")
     parser.add_argument("--dropout", type=float, default=0.3, help="Dropout rate in expression encoder")
     parser.add_argument("--num-workers", type=int, default=4)
+    parser.add_argument("--max-train-samples", type=int, default=None,
+                        help="Optional cap for a fast train subset")
+    parser.add_argument("--max-val-samples", type=int, default=None,
+                        help="Optional cap for a fast validation subset")
     parser.add_argument("--seed", type=int, default=42)
     args = parser.parse_args()
+    args.crop_size = args.crop_size if args.crop_size is not None else args.patch_size
+    args.input_size = args.input_size if args.input_size is not None else args.crop_size
 
     torch.manual_seed(args.seed)
     np.random.seed(args.seed)
@@ -180,23 +214,36 @@ def main() -> None:
     print("Loading datasets...")
     train_ds = PatchExpressionDataset(
         args.items_csv, args.expr_npz, args.scaler_npz, args.image_path,
-        patch_size=args.patch_size, split="train", augment=True,
+        patch_size=args.patch_size, crop_size=args.crop_size, input_size=args.input_size,
+        split="train", augment=True,
     )
     val_ds = PatchExpressionDataset(
         args.items_csv, args.expr_npz, args.scaler_npz, args.image_path,
-        patch_size=args.patch_size, split="val", augment=False,
+        patch_size=args.patch_size, crop_size=args.crop_size, input_size=args.input_size,
+        split="val", augment=False,
     )
+    if args.max_train_samples is not None and args.max_train_samples < len(train_ds):
+        subset_idx = np.random.permutation(len(train_ds))[:args.max_train_samples]
+        train_ds = Subset(train_ds, subset_idx.tolist())
+    if args.max_val_samples is not None and args.max_val_samples < len(val_ds):
+        subset_idx = np.random.permutation(len(val_ds))[:args.max_val_samples]
+        val_ds = Subset(val_ds, subset_idx.tolist())
+    base_train_ds = train_ds.dataset if isinstance(train_ds, Subset) else train_ds
     print(f"  Train: {len(train_ds)}, Val: {len(val_ds)}")
-    print(f"  n_genes: {train_ds.n_genes}, n_classes: {train_ds.n_classes}")
-    print(f"  Labels: {train_ds.label_list}")
+    print(f"  n_genes: {base_train_ds.n_genes}, n_classes: {base_train_ds.n_classes}")
+    print(f"  Labels: {base_train_ds.label_list}")
 
     train_loader = DataLoader(train_ds, batch_size=args.batch_size, shuffle=True,
                                num_workers=args.num_workers, pin_memory=True, drop_last=True)
     val_loader = DataLoader(val_ds, batch_size=args.batch_size, shuffle=False,
                              num_workers=args.num_workers, pin_memory=True)
 
-    img_enc = ImageEncoder(out_dim=args.embed_dim, freeze_backbone=True).to(device)
-    expr_enc = ExpressionEncoder(n_genes=train_ds.n_genes, out_dim=args.embed_dim, dropout=args.dropout).to(device)
+    img_enc = ImageEncoder(
+        out_dim=args.embed_dim,
+        freeze_backbone=True,
+        image_backbone=args.image_backbone,
+    ).to(device)
+    expr_enc = ExpressionEncoder(n_genes=base_train_ds.n_genes, out_dim=args.embed_dim, dropout=args.dropout).to(device)
     loss_fn = InfoNCELoss(tau=args.tau)
 
     optimizer = make_optimizer(img_enc, expr_enc, loss_fn,
@@ -226,11 +273,13 @@ def main() -> None:
             checkpoint = {
                 "epoch": epoch + 1,
                 "val_loss": val_loss,
+                "image_backbone": args.image_backbone,
+                "feature_dim": img_enc.feature_dim,
                 "img_enc": img_enc.state_dict(),
                 "expr_enc": expr_enc.state_dict(),
-                "args": vars(args),
-                "label_list": train_ds.label_list,
-                "n_genes": train_ds.n_genes,
+                "args": json_ready(vars(args)),
+                "label_list": base_train_ds.label_list,
+                "n_genes": base_train_ds.n_genes,
             }
             torch.save(checkpoint, args.output_dir / "best.pt")
 

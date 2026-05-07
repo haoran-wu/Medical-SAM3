@@ -4,6 +4,9 @@ Direction 3: Cross-Modal H&E Patch ↔ Gene Expression Contrastive Alignment.
 
 Full plan: `docs/VISIUM_HD_EXP1_PLAN.md` and `.claude/plans/zippy-swinging-coral.md`.
 
+Current ResNet/GigaPath baseline details:
+`inference/visium_hd_exp1/RESNET_GIGAPATH_EXPERIMENTS.md`.
+
 ---
 
 ## Dataset
@@ -386,11 +389,24 @@ lookup — not the semantic alignment we want.
 
 ## Stage 4b: Classification-Based Alignment
 
-**Status: 🔄 Running** (current SLURM jobs 10140513 and 10140514 on `gpu_devel` + `gpu`)
+**Status: completed once; needs metric-aware rerun**
 
-Two variants submitted in parallel:
-- `exp1_cls` (job 10140513): `align_weight=0.5` → output: `cls_checkpoints/`
-- `exp1_cls_a1` (job 10140514): `align_weight=1.0` → output: `cls_a1_checkpoints/`
+Completed output:
+
+```text
+output/visium_hd_exp1/cls_checkpoints/
+```
+
+Observed result from the completed run:
+
+| Run | Epochs | Best epoch | Best val expr acc | Best val image acc | Final val expr acc |
+|---|---:|---:|---:|---:|---:|
+| `cls_checkpoints` | 60 | 2 | 0.485 | 0.433 | 0.350 |
+
+Interpretation: classification-based alignment is more useful than pure
+InfoNCE, but the first full run peaked very early and then overfit. Future runs
+should use short training, early stopping, and per-class metrics rather than
+watching aggregate accuracy alone.
 
 **Why this is better than InfoNCE for spatial omics:**
 - Trains on semantic region labels (tumor vs stroma vs immune) instead of instance-level matching
@@ -419,6 +435,115 @@ sbatch -p gpu --job-name=exp1_cls_a1 --gres=gpu:1 --mem=48G --cpus-per-task=8 \
   --output=~/Medical-SAM3/output/visium_hd_exp1/cls_a1_%j.log \
   --wrap="... train_classification.py ... --align-weight 1.0"
 ```
+
+---
+
+## Stage 4c: Pathology Backbone Replacement
+
+**Status: quick GigaPath screening completed; metric-aware rerun next**
+
+Reason: ResNet50 ImageNet is only a sanity baseline and has no pathology-domain
+prior. This track updates the **classification / H&E-expression alignment**
+model, not the SAM3 segmentation baseline. The SAM3 result remains a separate
+finding: oracle multipoint prompts still recover semantic tissue regions weakly,
+so improving SAM-style segmentation would require a separate fine-tuning or
+model-replacement track.
+
+First pathology backbone: **Prov-GigaPath tile encoder**.
+
+Access note: `prov-gigapath/prov-gigapath` is a gated Hugging Face model. Before
+submitting the GigaPath jobs, request access on Hugging Face and run
+`huggingface-cli login` or `hf auth login` in the HPC environment that will run
+the jobs.
+
+Design choices:
+- add `--image-backbone resnet50|gigapath`
+- keep `resnet50` as the baseline
+- split patch scale into `--crop-size` and `--input-size`
+- use `input_size=224` for GigaPath
+- ablate `crop_size` so backbone changes are not confounded with tissue field
+  of view
+- keep GigaPath frozen in the first round and train only projection head,
+  expression encoder, and classifier
+
+Observed quick screening results:
+
+| Run | Train / Val subset | Epochs | Best val expr acc | Best val image acc |
+|---|---:|---:|---:|---:|
+| `cls_gigapath_crop64_quick2h_checkpoints_r2` | 50k / 10k | 2 | 0.552 | 0.721 |
+| `cls_gigapath_crop128_quick2h_checkpoints_r2` | 50k / 10k | 2 | 0.553 | 0.695 |
+
+These quick runs are currently the strongest observed variants. `crop128` is
+slightly better for expression-side accuracy, while `crop64` is better for
+image-side accuracy.
+
+Training code has now been updated to support:
+
+- early stopping via `--early-stop-patience`
+- best-checkpoint selection by `--monitor val_acc_expr|val_macro_f1_expr`
+- validation per-class precision/recall/F1 in `best_val_metrics.json`
+- expression/image confusion matrices in `best_confusion_expr.csv` and
+  `best_confusion_img.csv`
+- class-weight modes via `--class-weight-mode inverse|sqrt_inv|none`
+- optional class-balanced sampling via `--sampler balanced`
+- label subset runs via `--include-labels`
+
+Next frozen GigaPath ablation:
+
+```bash
+# Same biological FOV as the ResNet50 64 px baseline, resized for GigaPath.
+sbatch -p gpu --job-name=exp1_cls_giga64 --gres=gpu:1 --mem=48G --cpus-per-task=8 \
+  --time=12:00:00 \
+  --output=~/Medical-SAM3/output/visium_hd_exp1/g64_metric_%j.log \
+  --wrap="/home/hw646/.conda/envs/medsam3/bin/python \
+    ~/Medical-SAM3/inference/visium_hd_exp1/train_classification.py \
+    --items-csv ~/Medical-SAM3/output/visium_hd_exp1/patch_dataset/items.csv \
+    --expr-npz ~/Medical-SAM3/output/visium_hd_exp1/patch_dataset/expr_log1p.npz \
+    --scaler-npz ~/Medical-SAM3/output/visium_hd_exp1/patch_dataset/scaler.npz \
+    --image-path /nfs/roberts/project/pi_xy48/hw646/Exp1/spatial/tissue_hires_image.png \
+    --output-dir ~/Medical-SAM3/output/visium_hd_exp1/cls_gigapath_crop64_metric_checkpoints \
+    --image-backbone gigapath --crop-size 64 --input-size 224 \
+    --batch-size 128 --total-epochs 12 --freeze-epochs 12 \
+    --align-weight 0.5 --class-weight-mode sqrt_inv --sampler balanced \
+    --monitor val_macro_f1_expr --early-stop-patience 3 \
+    --max-train-samples 50000 --max-val-samples 10000"
+
+# Larger local context.
+sbatch -p gpu --job-name=exp1_cls_giga128 --gres=gpu:1 --mem=48G --cpus-per-task=8 \
+  --time=12:00:00 \
+  --output=~/Medical-SAM3/output/visium_hd_exp1/g128_metric_%j.log \
+  --wrap="... train_classification.py ... \
+    --output-dir ~/Medical-SAM3/output/visium_hd_exp1/cls_gigapath_crop128_metric_checkpoints \
+    --image-backbone gigapath --crop-size 128 --input-size 224 \
+    --batch-size 128 --total-epochs 12 --freeze-epochs 12 \
+    --align-weight 0.5 --class-weight-mode sqrt_inv --sampler balanced \
+    --monitor val_macro_f1_expr --early-stop-patience 3 \
+    --max-train-samples 50000 --max-val-samples 10000"
+
+# Full 224 px hires crop.
+sbatch -p gpu --job-name=exp1_cls_giga3cls --gres=gpu:1 --mem=48G --cpus-per-task=8 \
+  --time=12:00:00 \
+  --output=~/Medical-SAM3/output/visium_hd_exp1/g128_3cls_%j.log \
+  --wrap="... train_classification.py ... \
+    --output-dir ~/Medical-SAM3/output/visium_hd_exp1/cls_gigapath_crop128_3class_checkpoints \
+    --image-backbone gigapath --crop-size 128 --input-size 224 \
+    --batch-size 128 --total-epochs 12 --freeze-epochs 12 \
+    --align-weight 0.5 --class-weight-mode sqrt_inv --sampler balanced \
+    --monitor val_macro_f1_expr --early-stop-patience 3 \
+    --include-labels 'tumor,stroma,immune infiltration' \
+    --max-train-samples 50000 --max-val-samples 10000"
+```
+
+Follow-up after these metric-aware quick runs:
+- choose by expression macro-F1 first, expression accuracy second
+- rerun the best setting on all train/val bins with early stopping enabled
+- then evaluate expression-to-image retrieval from the best checkpoint
+
+Success criteria:
+- expression macro-F1 improves without collapsing minority labels
+- expression-to-image retrieval recall@10 improves, especially for tumor,
+  stroma, and immune infiltration
+- retrieval example grids show visually coherent matched regions
 
 ---
 

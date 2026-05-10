@@ -23,6 +23,24 @@ from sam3.model.sam3_image_processor import Sam3Processor
 from sam3.model.box_ops import box_xywh_to_cxcywh
 
 
+_ORIGINAL_PIN_MEMORY = None
+
+
+def _patch_pin_memory_for_local_cpu() -> None:
+    """Avoid a PyTorch MPS pin_memory bug when SAM3 is forced to run on CPU.
+
+    On this local macOS setup, calling Tensor.pin_memory() can try to allocate
+    MPS-backed storage even for CPU tensors. SAM3's box encoder calls
+    pin_memory() unconditionally before moving tensors to the prompt device.
+    For CPU-only inference, returning the tensor unchanged is sufficient.
+    """
+    global _ORIGINAL_PIN_MEMORY
+    if _ORIGINAL_PIN_MEMORY is not None:
+        return
+    _ORIGINAL_PIN_MEMORY = torch.Tensor.pin_memory
+    torch.Tensor.pin_memory = lambda self, *args, **kwargs: self
+
+
 def normalize_bbox(bbox_xywh, img_w, img_h):
     """Normalize XYWH bounding boxes to [0, 1] coordinates."""
     if isinstance(bbox_xywh, list):
@@ -114,6 +132,8 @@ class SAM3Model:
         if self.device == "cuda":
             torch.backends.cuda.matmul.allow_tf32 = True
             torch.backends.cudnn.allow_tf32 = True
+        else:
+            _patch_pin_memory_for_local_cpu()
 
         # Use bfloat16 autocast on CUDA only. CPU/MPS fall back to the default dtype.
         autocast_ctx = (

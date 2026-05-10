@@ -1,0 +1,2 @@
+sample_id,scale_from_original,mean_foreground_confidence,median_foreground_confidence,foreground_pixels,n_uncertain_tiles,has_annotation,min_dice_if_annotation_available,mean_dice_if_annotation_available
+visium_hd_exp1_annotated,0.256,0.7301501631736755,0.7660664916038513,580565,20,True,0.7262839879154078,0.8610392952918452

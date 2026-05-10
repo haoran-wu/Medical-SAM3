@@ -1,0 +1,11 @@
+{
+  "sample_id": "visium_hd_exp1_annotated",
+  "scale_from_original": 0.256,
+  "mean_foreground_confidence": 0.7301501631736755,
+  "median_foreground_confidence": 0.7660664916038513,
+  "foreground_pixels": 580565,
+  "n_uncertain_tiles": 20,
+  "has_annotation": true,
+  "min_dice_if_annotation_available": 0.7262839879154078,
+  "mean_dice_if_annotation_available": 0.8610392952918452
+}

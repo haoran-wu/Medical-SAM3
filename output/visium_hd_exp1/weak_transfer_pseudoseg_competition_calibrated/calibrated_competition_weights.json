@@ -1,0 +1,10 @@
+{
+  "lung_bronchiola": 1.0,
+  "erythorocytes": 1.600000023841858,
+  "immune_infiltration": 0.8999999761581421,
+  "lung_alveoli_normal_adjacent": 1.0,
+  "lung_vessels": 1.0,
+  "pigment": 1.600000023841858,
+  "stroma": 1.0,
+  "tumor": 1.350000023841858
+}

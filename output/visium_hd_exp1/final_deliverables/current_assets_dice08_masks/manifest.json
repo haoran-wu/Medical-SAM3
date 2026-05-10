@@ -1,0 +1,21 @@
+{
+  "source_dir": "/Users/haoranwu/Desktop/Yan_Lab_Research/Medical-SAM3/output/visium_hd_exp1/dice08_experiments/final_fullslide_1536_multiscale_et260",
+  "he_path": "/Users/haoranwu/Desktop/Yan_Lab_Research/Medical-SAM3/output/visium_hd_exp1/assets/tissue_hires_image.png",
+  "output_dir": "/Users/haoranwu/Desktop/Yan_Lab_Research/Medical-SAM3/output/visium_hd_exp1/final_deliverables/current_assets_dice08_masks",
+  "original_shape_hw": [
+    6000,
+    3524
+  ],
+  "labels": [
+    "lung_bronchiola",
+    "erythorocytes",
+    "immune_infiltration",
+    "lung_alveoli_normal_adjacent",
+    "lung_vessels",
+    "pigment",
+    "stroma",
+    "tumor"
+  ],
+  "primary_mask_dir": "/Users/haoranwu/Desktop/Yan_Lab_Research/Medical-SAM3/output/visium_hd_exp1/final_deliverables/current_assets_dice08_masks/masks_original_resolution_nonoverlap",
+  "notes": "Masks are trained from current available H&E + FICTURE hard factors + existing GeoJSON targets, then exported at original H&E resolution."
+}

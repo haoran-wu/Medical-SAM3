@@ -158,6 +158,7 @@ def summarize_one_run(
     max_masks: int,
     min_delta: float,
     prior_dilate: int,
+    save_panels: bool,
 ) -> List[Dict[str, object]]:
     report = json.loads((run_dir / "candidate_report.json").read_text())
     shape_hw = tuple(int(v) for v in report["image_shape"])
@@ -221,17 +222,18 @@ def summarize_one_run(
                     **metrics(pred, target),
                 }
                 rows.append(row)
-            best_variant, best_pred = max(variants.items(), key=lambda kv: metrics(kv[1], target)["dice"])
-            Image.fromarray(best_pred.astype(np.uint8) * 255).save(mask_dir / f"{slug}_thr{threshold:.2f}_{best_variant}.png")
-            canvas = np.concatenate(
-                [
-                    overlay(image, target, (255, 140, 0), 0.48),
-                    overlay(image, prior, (255, 0, 180), 0.42),
-                    overlay(image, best_pred, (0, 220, 255), 0.46),
-                ],
-                axis=1,
-            )
-            Image.fromarray(canvas).save(panel_dir / f"{slug}_thr{threshold:.2f}_target_prior_best.png")
+            if save_panels:
+                best_variant, best_pred = max(variants.items(), key=lambda kv: metrics(kv[1], target)["dice"])
+                Image.fromarray(best_pred.astype(np.uint8) * 255).save(mask_dir / f"{slug}_thr{threshold:.2f}_{best_variant}.png")
+                canvas = np.concatenate(
+                    [
+                        overlay(image, target, (255, 140, 0), 0.48),
+                        overlay(image, prior, (255, 0, 180), 0.42),
+                        overlay(image, best_pred, (0, 220, 255), 0.46),
+                    ],
+                    axis=1,
+                )
+                Image.fromarray(canvas).save(panel_dir / f"{slug}_thr{threshold:.2f}_target_prior_best.png")
     return rows
 
 
@@ -283,6 +285,7 @@ def main() -> None:
     parser.add_argument("--max-masks", type=int, default=32)
     parser.add_argument("--min-delta", type=float, default=0.001)
     parser.add_argument("--prior-dilate", type=int, default=8)
+    parser.add_argument("--skip-panels", action="store_true", help="Compute CSV/README only; avoid heavy PNG output.")
     args = parser.parse_args()
 
     args.output_dir.mkdir(parents=True, exist_ok=True)
@@ -292,7 +295,18 @@ def main() -> None:
     rows: List[Dict[str, object]] = []
     for run in find_runs(args.candidate_root):
         print(f"Fusing {run}")
-        rows.extend(summarize_one_run(run, args.output_dir, factors, gene_scores, args.max_masks, args.min_delta, args.prior_dilate))
+        rows.extend(
+            summarize_one_run(
+                run,
+                args.output_dir,
+                factors,
+                gene_scores,
+                args.max_masks,
+                args.min_delta,
+                args.prior_dilate,
+                save_panels=not args.skip_panels,
+            )
+        )
     write_summary(rows, args.output_dir)
 
 

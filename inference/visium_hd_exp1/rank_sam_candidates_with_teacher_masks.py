@@ -52,6 +52,12 @@ def dilate(mask: np.ndarray, radius: int) -> np.ndarray:
     return np.array(Image.fromarray(mask.astype(np.uint8) * 255).filter(ImageFilter.MaxFilter(2 * radius + 1))) > 127
 
 
+def erode(mask: np.ndarray, radius: int) -> np.ndarray:
+    if radius <= 0:
+        return mask.astype(bool)
+    return np.array(Image.fromarray(mask.astype(np.uint8) * 255).filter(ImageFilter.MinFilter(2 * radius + 1))) > 127
+
+
 def metrics(pred: np.ndarray, gt: np.ndarray) -> Dict[str, float]:
     pred = pred.astype(bool)
     gt = gt.astype(bool)
@@ -67,6 +73,23 @@ def metrics(pred: np.ndarray, gt: np.ndarray) -> Dict[str, float]:
         "pred_pixels": float(pred_sum),
         "gt_pixels": float(gt_sum),
     }
+
+
+def teacher_score(pred: np.ndarray, teacher: np.ndarray, objective: str, beta: float) -> float:
+    values = metrics(pred, teacher)
+    if objective == "dice":
+        return values["dice"]
+    if objective == "precision":
+        return values["precision"]
+    if objective == "recall":
+        return values["recall"]
+    if objective == "fbeta":
+        precision = values["precision"]
+        recall = values["recall"]
+        beta2 = beta * beta
+        denom = beta2 * precision + recall
+        return (1.0 + beta2) * precision * recall / denom if denom else 0.0
+    raise ValueError(f"Unknown objective: {objective}")
 
 
 def resolve_path(path_text: str, base_dir: Path) -> Path:
@@ -114,11 +137,13 @@ def greedy_select(
     max_masks: int,
     min_delta: float,
     max_overlap: float,
+    objective: str,
+    beta: float,
 ) -> Tuple[np.ndarray, List[int], float]:
     current = np.zeros_like(teacher, dtype=bool)
     selected: List[int] = []
     used = np.zeros(len(candidates), dtype=bool)
-    current_score = metrics(current, teacher)["dice"]
+    current_score = teacher_score(current, teacher, objective, beta)
     for _ in range(max_masks):
         best_idx = -1
         best_mask = current
@@ -131,7 +156,7 @@ def greedy_select(
                 if overlap > max_overlap:
                     continue
             trial = np.logical_or(current, cand)
-            score = metrics(trial, teacher)["dice"]
+            score = teacher_score(trial, teacher, objective, beta)
             if score > best_score:
                 best_idx = idx
                 best_mask = trial
@@ -161,6 +186,9 @@ def process_run(
     max_masks_values: Sequence[int],
     min_delta: float,
     max_overlap: float,
+    objective: str,
+    beta: float,
+    teacher_erode: int,
     teacher_dilate: int,
 ) -> List[Dict[str, object]]:
     report = json.loads((run_dir / "candidate_report.json").read_text())
@@ -178,12 +206,14 @@ def process_run(
         if label not in targets:
             continue
         teacher = resize_bool(read_mask(teacher_path), shape_hw)
+        if teacher_erode:
+            teacher = erode(teacher, teacher_erode)
         if teacher_dilate:
             teacher = dilate(teacher, teacher_dilate)
         if not teacher.any():
             continue
         for max_masks in max_masks_values:
-            pred, selected, teacher_fit = greedy_select(candidates, teacher, max_masks, min_delta, max_overlap)
+            pred, selected, teacher_fit = greedy_select(candidates, teacher, max_masks, min_delta, max_overlap, objective, beta)
             gt_score = metrics(pred, targets[label])
             teacher_score = metrics(pred, teacher)
             rows.append(
@@ -192,6 +222,10 @@ def process_run(
                     "label": label,
                     "teacher_variant": teacher_variant,
                     "teacher_path": str(teacher_path),
+                    "objective": objective,
+                    "beta": beta,
+                    "teacher_erode": teacher_erode,
+                    "teacher_dilate": teacher_dilate,
                     "max_masks": max_masks,
                     "n_selected": len(selected),
                     "selected_candidate_indices": ";".join(str(i) for i in selected),
@@ -233,6 +267,9 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--max-masks", type=int, nargs="+", default=[1, 2, 3, 5, 8, 12, 20, 32])
     parser.add_argument("--min-delta", type=float, default=0.001)
     parser.add_argument("--max-overlap", type=float, default=0.85)
+    parser.add_argument("--selection-objective", choices=["dice", "fbeta", "precision", "recall"], default="dice")
+    parser.add_argument("--fbeta", type=float, default=1.0)
+    parser.add_argument("--teacher-erode", type=int, default=0)
     parser.add_argument("--teacher-dilate", type=int, default=0)
     return parser.parse_args()
 
@@ -246,7 +283,19 @@ def main() -> None:
     rows: List[Dict[str, object]] = []
     for run in find_runs(args.candidate_root):
         print(f"Processing {run}", flush=True)
-        rows.extend(process_run(run, teacher_entries, args.max_masks, args.min_delta, args.max_overlap, args.teacher_dilate))
+        rows.extend(
+            process_run(
+                run,
+                teacher_entries,
+                args.max_masks,
+                args.min_delta,
+                args.max_overlap,
+                args.selection_objective,
+                args.fbeta,
+                args.teacher_erode,
+                args.teacher_dilate,
+            )
+        )
     write_outputs(rows, args.output_dir)
 
 

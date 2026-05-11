@@ -235,22 +235,26 @@ def score_segments(
     table: pd.DataFrame,
     protos: Dict[str, Dict[str, object]],
     gene_scores: Dict[str, np.ndarray],
+    segments: np.ndarray | None = None,
+    tissue: np.ndarray | None = None,
     *,
     w_gene: float,
     w_factor: float,
     w_he: float,
     w_spatial: float,
     min_score: float,
+    smooth_lambda: float = 0.0,
+    smooth_iters: int = 0,
 ) -> Dict[int, str]:
     assignments: Dict[int, str] = {}
+    scores_by_segment: Dict[int, Dict[str, float]] = {}
     factor_cols = [col for col in table.columns if col.startswith("factor_")]
     for _, row in table.iterrows():
         seg_id = int(row["segment"])
         seg_lab = np.array([row["lab_l"], row["lab_a"], row["lab_b"]], dtype=np.float64)
         seg_hist = row[factor_cols].to_numpy(dtype=np.float64)
         seg_xy = np.array([row["x"], row["y"]], dtype=np.float64)
-        best_label = ""
-        best_score = min_score
+        label_scores: Dict[str, float] = {}
         for label, proto in protos.items():
             gene_score = float(np.dot(seg_hist, gene_scores.get(label, np.zeros_like(seg_hist))))
             factor_score = cosine(seg_hist, proto["factor_hist"])
@@ -258,13 +262,74 @@ def score_segments(
             he_score = math.exp(-0.5 * color_z)
             dist = float(np.linalg.norm(seg_xy - proto["centroid"]))
             spatial_score = math.exp(-3.5 * dist)
-            score = w_gene * gene_score + w_factor * factor_score + w_he * he_score + w_spatial * spatial_score
-            if score > best_score:
-                best_score = score
-                best_label = label
+            label_scores[label] = w_gene * gene_score + w_factor * factor_score + w_he * he_score + w_spatial * spatial_score
+        scores_by_segment[seg_id] = label_scores
+        best_label, best_score = max(label_scores.items(), key=lambda item: item[1])
         if best_label:
-            assignments[seg_id] = best_label
+            if best_score >= min_score:
+                assignments[seg_id] = best_label
+    if smooth_lambda > 0 and smooth_iters > 0 and segments is not None and tissue is not None:
+        assignments = smooth_segment_assignments(
+            scores_by_segment,
+            assignments,
+            segments,
+            tissue,
+            min_score=min_score,
+            smooth_lambda=smooth_lambda,
+            smooth_iters=smooth_iters,
+        )
     return assignments
+
+
+def segment_adjacency(segments: np.ndarray, tissue: np.ndarray) -> Dict[int, set[int]]:
+    adjacency: Dict[int, set[int]] = {}
+    pairs = []
+    horizontal = (segments[:, 1:] != segments[:, :-1]) & tissue[:, 1:] & tissue[:, :-1]
+    if horizontal.any():
+        pairs.extend(zip(segments[:, 1:][horizontal].ravel(), segments[:, :-1][horizontal].ravel()))
+    vertical = (segments[1:, :] != segments[:-1, :]) & tissue[1:, :] & tissue[:-1, :]
+    if vertical.any():
+        pairs.extend(zip(segments[1:, :][vertical].ravel(), segments[:-1, :][vertical].ravel()))
+    for a, b in pairs:
+        a = int(a)
+        b = int(b)
+        if a <= 0 or b <= 0 or a == b:
+            continue
+        adjacency.setdefault(a, set()).add(b)
+        adjacency.setdefault(b, set()).add(a)
+    return adjacency
+
+
+def smooth_segment_assignments(
+    scores_by_segment: Dict[int, Dict[str, float]],
+    assignments: Dict[int, str],
+    segments: np.ndarray,
+    tissue: np.ndarray,
+    *,
+    min_score: float,
+    smooth_lambda: float,
+    smooth_iters: int,
+) -> Dict[int, str]:
+    adjacency = segment_adjacency(segments, tissue)
+    labels = list(LABEL_ORDER)
+    current = dict(assignments)
+    for _ in range(smooth_iters):
+        next_assignments: Dict[int, str] = {}
+        for seg_id, unary in scores_by_segment.items():
+            neighbors = adjacency.get(seg_id, set())
+            denom = max(1, len(neighbors))
+            best_label = ""
+            best_score = min_score
+            for label in labels:
+                neighbor_score = sum(1.0 for n in neighbors if current.get(n) == label) / denom
+                score = float(unary.get(label, 0.0)) + smooth_lambda * neighbor_score
+                if score > best_score:
+                    best_score = score
+                    best_label = label
+            if best_label:
+                next_assignments[seg_id] = best_label
+        current = next_assignments
+    return current
 
 
 def assignments_to_masks(
@@ -331,11 +396,15 @@ def run_one(args: argparse.Namespace) -> None:
         table,
         protos,
         gene_scores,
+        segments,
+        tissue,
         w_gene=args.w_gene,
         w_factor=args.w_factor,
         w_he=args.w_he,
         w_spatial=args.w_spatial,
         min_score=args.min_score,
+        smooth_lambda=args.smooth_lambda,
+        smooth_iters=args.smooth_iters,
     )
     masks = assignments_to_masks(segments, assignments, shape, args.min_area, args.close_radius)
     mask_dir = args.output_dir / "masks"
@@ -356,7 +425,8 @@ def run_one(args: argparse.Namespace) -> None:
     lines = ["# Superpixel Gene + H&E Segmentation", ""]
     lines.append(
         f"Parameters: n_segments={args.n_segments}, compactness={args.compactness}, sigma={args.sigma}, "
-        f"weights=gene:{args.w_gene}/factor:{args.w_factor}/he:{args.w_he}/spatial:{args.w_spatial}, min_score={args.min_score}"
+        f"weights=gene:{args.w_gene}/factor:{args.w_factor}/he:{args.w_he}/spatial:{args.w_spatial}, "
+        f"min_score={args.min_score}, smooth_lambda={args.smooth_lambda}, smooth_iters={args.smooth_iters}"
     )
     lines += ["", "| label | Dice | IoU | Recall | Precision |", "|---|---:|---:|---:|---:|"]
     for _, row in metrics.sort_values("dice", ascending=False).iterrows():
@@ -384,6 +454,8 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--min-score", type=float, default=0.35)
     parser.add_argument("--min-area", type=int, default=128)
     parser.add_argument("--close-radius", type=int, default=1)
+    parser.add_argument("--smooth-lambda", type=float, default=0.0)
+    parser.add_argument("--smooth-iters", type=int, default=0)
     return parser.parse_args()
 
 

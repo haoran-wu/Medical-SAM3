@@ -79,6 +79,13 @@ case "$TEACHER_KIND" in
       --teacher-root "$PROJECT/results/visium_hd_exp1/micro_classifier_sweep/micro_et_2048_11417043/masks"
     )
     ;;
+  unified)
+    TEACHER_ARGS=(
+      --teacher-root "$PROJECT/results/visium_hd_exp1/unified_pixel_classifier/unified_et_nofactor_xy_1536_11418035/masks"
+      --teacher-root "$PROJECT/results/visium_hd_exp1/unified_pixel_classifier/unified_hgb_factor_xy_1536_11418037/masks"
+      --teacher-root "$PROJECT/results/visium_hd_exp1/unified_pixel_classifier/unified_et_factor_xy_1536_11418033/masks"
+    )
+    ;;
   *)
     echo "Unknown teacher: $TEACHER_KIND" >&2
     exit 2

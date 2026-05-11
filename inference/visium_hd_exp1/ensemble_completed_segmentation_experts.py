@@ -260,6 +260,24 @@ def collect_hed_micro(results_root: Path, shape_hw: Tuple[int, int]) -> List[Exp
     return experts
 
 
+def collect_micro_classifier(results_root: Path, shape_hw: Tuple[int, int]) -> List[ExpertMask]:
+    experts: List[ExpertMask] = []
+    for mask_path in sorted((results_root / "micro_classifier_sweep").glob("*/masks/*_micro_classifier_best.png")):
+        label = mask_path.name.replace("_micro_classifier_best.png", "")
+        if label not in LABEL_ORDER:
+            continue
+        experts.append(
+            ExpertMask(
+                label=label,
+                method="micro_classifier",
+                source=mask_path.parents[1].name,
+                variant="mask",
+                mask=resize_bool(read_mask(mask_path), shape_hw),
+            )
+        )
+    return experts
+
+
 def collect_molecular_rank(
     results_root: Path,
     shape_hw: Tuple[int, int],
@@ -394,7 +412,8 @@ def run(args: argparse.Namespace) -> None:
     experts = []
     experts.extend(collect_superpixel(args.results_root, shape_hw))
     experts.extend(collect_hed_micro(args.results_root, shape_hw))
-    print(f"Loaded {len(experts)} superpixel/HED experts", flush=True)
+    experts.extend(collect_micro_classifier(args.results_root, shape_hw))
+    print(f"Loaded {len(experts)} superpixel/HED/micro-classifier experts", flush=True)
     mask_cache: Dict[str, List[np.ndarray]] = {}
     experts.extend(collect_molecular_rank(args.results_root, shape_hw, run_index, mask_cache))
     print(f"Loaded {len(experts)} experts after molecular rank; cached {len(mask_cache)} SAM runs", flush=True)

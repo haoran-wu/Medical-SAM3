@@ -1,0 +1,9 @@
+label,pixels,rule
+lung_bronchiola,4323,FICTURE marker factor -> class; pigment/RBC H&E threshold clipped to tissue
+erythorocytes,1896,FICTURE marker factor -> class; pigment/RBC H&E threshold clipped to tissue
+immune_infiltration,5677,FICTURE marker factor -> class; pigment/RBC H&E threshold clipped to tissue
+lung_alveoli_normal_adjacent,152069,FICTURE marker factor -> class; pigment/RBC H&E threshold clipped to tissue
+lung_vessels,5536,FICTURE marker factor -> class; pigment/RBC H&E threshold clipped to tissue
+pigment,1801,FICTURE marker factor -> class; pigment/RBC H&E threshold clipped to tissue
+stroma,464524,FICTURE marker factor -> class; pigment/RBC H&E threshold clipped to tissue
+tumor,176411,FICTURE marker factor -> class; pigment/RBC H&E threshold clipped to tissue

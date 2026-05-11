@@ -1,0 +1,9 @@
+label,pixels,rule
+lung_bronchiola,4323,F7 SCGB1A1/SCGB3A1/BPIFB1 SAM-refined component
+erythorocytes,1896,H&E unsupervised eosin/RBC color threshold clipped to tissue
+immune_infiltration,5677,F6 SPP1/LYZ/FTL plus F8 IG genes SAM-refined components
+lung_alveoli_normal_adjacent,152069,F3 SFTPB/SFTPC/LPCAT1 SAM-refined components
+lung_vessels,5536,F1 MYL9/TAGLN/MYH11/ACTA2 local SAM-refined component
+pigment,1801,H&E unsupervised dark-pixel threshold clipped to tissue
+stroma,464524,Broad F1 MYL9/TAGLN/MYH11/ACTA2 SAM-refined component minus vessel component
+tumor,176411,F0/F2 CEACAM5/SPINK1/NAPSA epithelial/tumor-like SAM-refined components

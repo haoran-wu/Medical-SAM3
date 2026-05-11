@@ -10,14 +10,17 @@
 
 set -euo pipefail
 
-GROUP="${1:?Usage: sbatch visium_hd_exp1_gene_prior_fusion_summary.sbatch GROUP}"
+GROUP="${1:?Usage: sbatch visium_hd_exp1_gene_prior_fusion_summary.sbatch GROUP [MAX_MASKS] [PRIOR_DILATE] [MIN_DELTA]}"
+MAX_MASKS="${2:-48}"
+PRIOR_DILATE="${3:-12}"
+MIN_DELTA="${4:-0.001}"
 
 PROJECT=/nfs/roberts/project/pi_xy48/hw646/Medical-SAM3
 PY=/nfs/roberts/project/pi_xy48/hw646/ycrc_conda/envs/medsam3/bin/python
 BASE=$PROJECT/results/visium_hd_exp1/sam3_iamsam_retrial
 FACTOR=$PROJECT/output/visium_hd_exp1/molecular_prior_experiments/dx-60_dy80/ficture_factor_label_image_he.npy
 ANNOT=$PROJECT/output/visium_hd_exp1/molecular_prior_experiments/dx-60_dy80/factor_annotation.csv
-OUT=$PROJECT/results/visium_hd_exp1/gene_prior_sam3_fusion/${GROUP}_${SLURM_JOB_ID}
+OUT=$PROJECT/results/visium_hd_exp1/gene_prior_sam3_fusion/${GROUP}_m${MAX_MASKS}_d${PRIOR_DILATE}_md${MIN_DELTA}_${SLURM_JOB_ID}
 
 cd "$PROJECT"
 export MPLCONFIGDIR="$PROJECT/output/.mplconfig"
@@ -53,8 +56,9 @@ esac
   --factor-image "$FACTOR" \
   --factor-annotation "$ANNOT" \
   --output-dir "$OUT" \
-  --max-masks 48 \
-  --prior-dilate 12 \
+  --max-masks "$MAX_MASKS" \
+  --prior-dilate "$PRIOR_DILATE" \
+  --min-delta "$MIN_DELTA" \
   --skip-panels
 
 echo "Output: $OUT"

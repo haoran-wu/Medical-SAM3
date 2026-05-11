@@ -10,14 +10,15 @@
 
 set -euo pipefail
 
-GROUP="${1:?Usage: sbatch visium_hd_exp1_molecular_rank_summary.sbatch GROUP}"
+GROUP="${1:?Usage: sbatch visium_hd_exp1_molecular_rank_summary.sbatch GROUP [MAX_OVERLAP]}"
+MAX_OVERLAP="${2:-0.72}"
 
 PROJECT=/nfs/roberts/project/pi_xy48/hw646/Medical-SAM3
 PY=/nfs/roberts/project/pi_xy48/hw646/ycrc_conda/envs/medsam3/bin/python
 BASE=$PROJECT/results/visium_hd_exp1/sam3_iamsam_retrial
 FACTOR=$PROJECT/output/visium_hd_exp1/molecular_prior_experiments/dx-60_dy80/ficture_factor_label_image_he.npy
 ANNOT=$PROJECT/output/visium_hd_exp1/molecular_prior_experiments/dx-60_dy80/factor_annotation.csv
-OUT=$PROJECT/results/visium_hd_exp1/molecular_sam3_ranking/${GROUP}_${SLURM_JOB_ID}
+OUT=$PROJECT/results/visium_hd_exp1/molecular_sam3_ranking/${GROUP}_ov${MAX_OVERLAP}_${SLURM_JOB_ID}
 
 cd "$PROJECT"
 export MPLCONFIGDIR="$PROJECT/output/.mplconfig"
@@ -62,7 +63,7 @@ esac
   --factor-annotation "$ANNOT" \
   --output-dir "$OUT" \
   --top-ks 1 2 3 5 8 12 20 32 48 \
-  --max-overlap 0.72 \
+  --max-overlap "$MAX_OVERLAP" \
   --skip-panels
 
 echo "Output: $OUT"

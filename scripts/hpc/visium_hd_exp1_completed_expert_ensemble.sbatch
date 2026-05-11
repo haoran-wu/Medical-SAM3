@@ -17,6 +17,7 @@ export MPLCONFIGDIR="$PROJECT/output/.mplconfig"
 mkdir -p "$MPLCONFIGDIR" "$OUT" "$PROJECT/results/visium_hd_exp1/logs"
 
 "$PY" inference/visium_hd_exp1/ensemble_completed_segmentation_experts.py \
-  --output-dir "$OUT"
+  --output-dir "$OUT" \
+  "$@"
 
 echo "Output: $OUT"

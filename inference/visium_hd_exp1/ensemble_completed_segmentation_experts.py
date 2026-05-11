@@ -74,6 +74,19 @@ def read_mask(path: Path) -> np.ndarray:
     return np.array(Image.open(path).convert("L")) > 127
 
 
+def max_side_shape(shape_hw: Tuple[int, int], max_side: int) -> Tuple[int, int]:
+    h, w = shape_hw
+    scale = min(1.0, float(max_side) / max(h, w))
+    return max(1, int(round(h * scale))), max(1, int(round(w * scale)))
+
+
+def resize_image(image: np.ndarray, shape_hw: Tuple[int, int], resample: Image.Resampling) -> np.ndarray:
+    h, w = shape_hw
+    if image.shape[:2] == (h, w):
+        return image
+    return np.array(Image.fromarray(image).resize((w, h), resample))
+
+
 def resize_bool(mask: np.ndarray, shape_hw: Tuple[int, int]) -> np.ndarray:
     h, w = shape_hw
     if mask.shape == (h, w):
@@ -339,8 +352,9 @@ def enforce_non_overlap(chosen: Dict[str, Tuple[str, np.ndarray, Dict[str, float
 
 def run(args: argparse.Namespace) -> None:
     args.output_dir.mkdir(parents=True, exist_ok=True)
-    image = np.array(Image.open(args.he_image).convert("RGB"))
-    shape_hw = image.shape[:2]
+    image_full = np.array(Image.open(args.he_image).convert("RGB"))
+    shape_hw = max_side_shape(image_full.shape[:2], args.max_side)
+    image = resize_image(image_full, shape_hw, Image.Resampling.BILINEAR)
     targets = load_targets(args.summary_path, shape_hw)
     factors = np.load(args.factor_image)
     n_factors = int(factors[factors >= 0].max()) + 1 if np.any(factors >= 0) else 1
@@ -402,6 +416,7 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--factor-annotation", type=Path, default=DEFAULT_ANNOT)
     parser.add_argument("--results-root", type=Path, default=DEFAULT_RESULTS)
     parser.add_argument("--output-dir", type=Path, required=True)
+    parser.add_argument("--max-side", type=int, default=1536)
     return parser.parse_args()
 
 

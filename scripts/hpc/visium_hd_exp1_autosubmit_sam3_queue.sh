@@ -45,7 +45,9 @@ total=$(grep -c '^sbatch ' "$QUEUE_FILE" || true)
 echo "[$(date)] autosubmit starting at index $next_index / $total; max_active=$MAX_ACTIVE" >> "$LOG_FILE"
 
 while [[ "$next_index" -le "$total" ]]; do
-  active=$(squeue -u hw646 -h | wc -l | tr -d ' ')
+  # Count only GPU jobs for this GPU-followup queue. CPU/day summary jobs run
+  # in parallel and should not prevent us from keeping GPU slots busy.
+  active=$(squeue -u hw646 -h -o "%P" | awk '$1 ~ /^gpu/ {n++} END {print n+0}')
   if [[ "$active" -lt "$MAX_ACTIVE" ]]; then
     cmd=$(grep '^sbatch ' "$QUEUE_FILE" | sed -n "${next_index}p")
     echo "[$(date)] active=$active submitting #$next_index: $cmd" >> "$LOG_FILE"

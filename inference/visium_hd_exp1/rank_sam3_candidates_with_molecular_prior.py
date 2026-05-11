@@ -398,6 +398,7 @@ def summarize_one_run(
     gene_factor_scores: Dict[str, np.ndarray],
     top_ks: Sequence[int],
     max_overlap: float,
+    save_panels: bool,
 ) -> List[Dict[str, object]]:
     report_path = run_dir / "candidate_report.json"
     report = json.loads(report_path.read_text())
@@ -448,26 +449,27 @@ def summarize_one_run(
                     }
                 )
 
-        best = max(
-            [r for r in rows if r["run"] == run_dir.name and r["slug"] == proto.slug],
-            key=lambda r: float(r["dice"]),
-        )
-        best_scored = label_scores[str(best["variant"])]
-        best_pred, _ = select_ranked_union(
-            best_scored,
-            top_k=int(best["top_k"]),
-            max_overlap=max_overlap,
-        )
-        color = LABEL_COLORS.get(proto.slug, (0, 220, 255))
-        Image.fromarray(best_pred.astype(np.uint8) * 255).save(mask_out / f"{proto.slug}_best_ranked.png")
-        canvas = np.concatenate(
-            [
-                overlay(image, proto.target, (255, 140, 0), alpha=0.48),
-                overlay(image, best_pred, color, alpha=0.48),
-            ],
-            axis=1,
-        )
-        Image.fromarray(canvas).save(panel_out / f"{proto.slug}_target_vs_best_ranked.png")
+        if save_panels:
+            best = max(
+                [r for r in rows if r["run"] == run_dir.name and r["slug"] == proto.slug],
+                key=lambda r: float(r["dice"]),
+            )
+            best_scored = label_scores[str(best["variant"])]
+            best_pred, _ = select_ranked_union(
+                best_scored,
+                top_k=int(best["top_k"]),
+                max_overlap=max_overlap,
+            )
+            color = LABEL_COLORS.get(proto.slug, (0, 220, 255))
+            Image.fromarray(best_pred.astype(np.uint8) * 255).save(mask_out / f"{proto.slug}_best_ranked.png")
+            canvas = np.concatenate(
+                [
+                    overlay(image, proto.target, (255, 140, 0), alpha=0.48),
+                    overlay(image, best_pred, color, alpha=0.48),
+                ],
+                axis=1,
+            )
+            Image.fromarray(canvas).save(panel_out / f"{proto.slug}_target_vs_best_ranked.png")
     return rows
 
 
@@ -540,6 +542,7 @@ def main() -> None:
     parser.add_argument("--output-dir", type=Path, required=True)
     parser.add_argument("--top-ks", type=int, nargs="+", default=[1, 2, 3, 5, 8, 12, 20, 32])
     parser.add_argument("--max-overlap", type=float, default=0.72)
+    parser.add_argument("--skip-panels", action="store_true", help="Compute tables only; avoid writing heavy mask/panel PNGs.")
     args = parser.parse_args()
 
     args.output_dir.mkdir(parents=True, exist_ok=True)
@@ -556,7 +559,17 @@ def main() -> None:
         raise SystemExit("No candidate_report.json files found.")
     for run_dir in runs:
         print(f"Ranking {run_dir}")
-        rows.extend(summarize_one_run(run_dir, args.output_dir, factor_image, gene_factor_scores, args.top_ks, args.max_overlap))
+        rows.extend(
+            summarize_one_run(
+                run_dir,
+                args.output_dir,
+                factor_image,
+                gene_factor_scores,
+                args.top_ks,
+                args.max_overlap,
+                save_panels=not args.skip_panels,
+            )
+        )
     write_summary(rows, args.output_dir)
 
 

@@ -52,6 +52,17 @@ COLORS = {
     "tumor": (23, 190, 207),
 }
 
+NONOVERLAP_PRIORITY = [
+    "pigment",
+    "erythorocytes",
+    "immune_infiltration",
+    "lung_bronchiola",
+    "lung_vessels",
+    "lung_alveoli_normal_adjacent",
+    "tumor",
+    "stroma",
+]
+
 
 @dataclass
 class ExpertMask:
@@ -342,7 +353,8 @@ def make_overlay(image: np.ndarray, masks: Dict[str, np.ndarray]) -> np.ndarray:
 def enforce_non_overlap(chosen: Dict[str, Tuple[str, np.ndarray, Dict[str, float]]]) -> Dict[str, np.ndarray]:
     claimed = np.zeros(next(iter(chosen.values()))[1].shape, dtype=bool)
     out: Dict[str, np.ndarray] = {}
-    priority = sorted(chosen, key=lambda label: chosen[label][2]["dice"], reverse=True)
+    priority = [label for label in NONOVERLAP_PRIORITY if label in chosen]
+    priority.extend(label for label in chosen if label not in priority)
     for label in priority:
         pred = chosen[label][1] & ~claimed
         out[label] = pred

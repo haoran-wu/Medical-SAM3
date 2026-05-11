@@ -180,10 +180,18 @@ def selected_indices(row: pd.Series) -> List[int]:
     return [int(x) for x in re.split(r"[;,]", text) if x.strip().isdigit()]
 
 
-def load_candidate_masks(run_dir: Path, shape_hw: Tuple[int, int]) -> List[np.ndarray]:
+def load_candidate_masks(
+    run_dir: Path,
+    shape_hw: Tuple[int, int],
+    cache: Dict[str, List[np.ndarray]],
+) -> List[np.ndarray]:
+    key = str(run_dir)
+    if key in cache:
+        return cache[key]
     masks = []
     for path in sorted((run_dir / "candidate_masks").glob("candidate_*.png")):
         masks.append(resize_bool(read_mask(path), shape_hw))
+    cache[key] = masks
     return masks
 
 
@@ -210,7 +218,12 @@ def collect_superpixel(results_root: Path, shape_hw: Tuple[int, int]) -> List[Ex
     return experts
 
 
-def collect_molecular_rank(results_root: Path, shape_hw: Tuple[int, int], run_index: Dict[str, Path]) -> List[ExpertMask]:
+def collect_molecular_rank(
+    results_root: Path,
+    shape_hw: Tuple[int, int],
+    run_index: Dict[str, Path],
+    mask_cache: Dict[str, List[np.ndarray]],
+) -> List[ExpertMask]:
     experts: List[ExpertMask] = []
     for csv_path in sorted((results_root / "molecular_sam3_ranking").glob("*/molecular_sam3_ranked_best_by_run_label.csv")):
         source = csv_path.parent.name
@@ -220,7 +233,7 @@ def collect_molecular_rank(results_root: Path, shape_hw: Tuple[int, int], run_in
             run = str(row["run"])
             if label not in LABEL_ORDER or run not in run_index:
                 continue
-            masks = load_candidate_masks(run_index[run], shape_hw)
+            masks = load_candidate_masks(run_index[run], shape_hw, mask_cache)
             chosen = [masks[i] for i in selected_indices(row) if i < len(masks)]
             if not chosen:
                 continue
@@ -235,6 +248,7 @@ def collect_gene_fusion(
     run_index: Dict[str, Path],
     factors_full: np.ndarray,
     gene_scores: Dict[str, np.ndarray],
+    mask_cache: Dict[str, List[np.ndarray]],
 ) -> List[ExpertMask]:
     experts: List[ExpertMask] = []
     factors = resize_labels(factors_full, shape_hw)
@@ -247,7 +261,7 @@ def collect_gene_fusion(
             run = str(row["run"])
             if label not in LABEL_ORDER or label not in gene_scores or run not in run_index:
                 continue
-            masks = load_candidate_masks(run_index[run], shape_hw)
+            masks = load_candidate_masks(run_index[run], shape_hw, mask_cache)
             prior = prior_score_image(factors, gene_scores[label]) >= float(row["threshold"])
             prior_context = dilate(prior, prior_dilate)
             variant = str(row["variant"])
@@ -335,8 +349,12 @@ def run(args: argparse.Namespace) -> None:
 
     experts = []
     experts.extend(collect_superpixel(args.results_root, shape_hw))
-    experts.extend(collect_molecular_rank(args.results_root, shape_hw, run_index))
-    experts.extend(collect_gene_fusion(args.results_root, shape_hw, run_index, factors, gene_scores))
+    print(f"Loaded {len(experts)} superpixel experts", flush=True)
+    mask_cache: Dict[str, List[np.ndarray]] = {}
+    experts.extend(collect_molecular_rank(args.results_root, shape_hw, run_index, mask_cache))
+    print(f"Loaded {len(experts)} experts after molecular rank; cached {len(mask_cache)} SAM runs", flush=True)
+    experts.extend(collect_gene_fusion(args.results_root, shape_hw, run_index, factors, gene_scores, mask_cache))
+    print(f"Loaded {len(experts)} total experts; cached {len(mask_cache)} SAM runs", flush=True)
 
     rows = []
     chosen: Dict[str, Tuple[str, np.ndarray, Dict[str, float]]] = {}

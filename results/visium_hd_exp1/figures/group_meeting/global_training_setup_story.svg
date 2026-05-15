@@ -1,0 +1,157 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="2200" height="1350" viewBox="0 0 2200 1350">
+  <defs>
+    <marker id="arrow" markerWidth="14" markerHeight="14" refX="12" refY="7" orient="auto">
+      <path d="M2,2 L12,7 L2,12 Z" fill="#465261"/>
+    </marker>
+    <marker id="greenArrow" markerWidth="14" markerHeight="14" refX="12" refY="7" orient="auto">
+      <path d="M2,2 L12,7 L2,12 Z" fill="#2f7d62"/>
+    </marker>
+    <marker id="orangeArrow" markerWidth="14" markerHeight="14" refX="12" refY="7" orient="auto">
+      <path d="M2,2 L12,7 L2,12 Z" fill="#c06a13"/>
+    </marker>
+    <filter id="shadow" x="-8%" y="-8%" width="116%" height="116%">
+      <feDropShadow dx="0" dy="3" stdDeviation="4" flood-color="#000000" flood-opacity="0.14"/>
+    </filter>
+    <style>
+      .title { font: 700 44px Arial, sans-serif; fill: #13213a; }
+      .subtitle { font: 400 22px Arial, sans-serif; fill: #5f6f7e; }
+      .section { font: 700 27px Arial, sans-serif; fill: #13213a; }
+      .label { font: 700 21px Arial, sans-serif; fill: #13213a; }
+      .small { font: 400 17px Arial, sans-serif; fill: #374151; }
+      .tiny { font: 400 14px Arial, sans-serif; fill: #5f6f7e; }
+      .note { font: 700 14px Arial, sans-serif; fill: #7c4a03; }
+      .whiteLabel { font: 700 21px Arial, sans-serif; fill: #ffffff; }
+      .whiteSmall { font: 400 16px Arial, sans-serif; fill: #ffffff; }
+      .box { stroke-width: 2.2; filter: url(#shadow); }
+      .line { stroke: #465261; stroke-width: 3.4; fill: none; marker-end: url(#arrow); }
+      .greenLine { stroke: #2f7d62; stroke-width: 3.4; fill: none; marker-end: url(#greenArrow); }
+      .orangeLine { stroke: #c06a13; stroke-width: 3.4; fill: none; marker-end: url(#orangeArrow); }
+      .chip { font: 700 15px Arial, sans-serif; fill: #203b63; }
+    </style>
+  </defs>
+
+  <rect width="2200" height="1350" fill="#f7f3ea"/>
+  <text x="70" y="65" class="title">Global Training Setup: What Was Fixed Before Running Ablations</text>
+  <text x="72" y="103" class="subtitle">A paired VisiumHD H&amp;E-expression dataset is used to train two branches into one biologically meaningful embedding space.</text>
+
+  <!-- Main story lane -->
+  <rect x="70" y="155" width="2060" height="785" rx="30" class="box" fill="#fffdf6" stroke="#d8d2c3"/>
+  <text x="105" y="205" class="section">Fixed pipeline used by all experiments</text>
+
+  <!-- Data source -->
+  <rect x="110" y="265" width="290" height="170" rx="22" fill="#eef2f7" stroke="#94a3b8" stroke-width="2.2"/>
+  <text x="145" y="308" class="label">VisiumHD location</text>
+  <text x="145" y="343" class="small">one spatial coordinate gives</text>
+  <text x="145" y="371" class="small">matched image + molecular data</text>
+  <rect x="140" y="392" width="215" height="28" rx="8" fill="#dbe4ef"/>
+  <text x="158" y="412" class="tiny">same location, paired inputs</text>
+
+  <!-- Two inputs -->
+  <rect x="505" y="220" width="285" height="150" rx="22" fill="#ddeff5" stroke="#2f6f9f" stroke-width="2.2"/>
+  <text x="540" y="263" class="label">H&amp;E image crop</text>
+  <text x="540" y="296" class="small">main: crop128</text>
+  <text x="540" y="322" class="small">resized to input 224</text>
+  <text x="540" y="348" class="tiny">earlier crop64 also tested</text>
+
+  <rect x="505" y="425" width="285" height="150" rx="22" fill="#e3f3ea" stroke="#2f7d62" stroke-width="2.2"/>
+  <text x="540" y="468" class="label">Expression vector</text>
+  <text x="540" y="501" class="small">18,085-gene profile</text>
+  <text x="540" y="527" class="small">same coordinate as crop</text>
+  <text x="540" y="553" class="tiny">target molecular signal</text>
+
+  <!-- Branches -->
+  <rect x="900" y="220" width="295" height="150" rx="22" fill="#ddeff5" stroke="#2f6f9f" stroke-width="2.2"/>
+  <text x="935" y="263" class="label">Image branch</text>
+  <text x="935" y="296" class="small">ResNet50 or GigaPath</text>
+  <text x="935" y="322" class="small">+ trainable projection head</text>
+  <text x="935" y="348" class="tiny">outputs image embedding</text>
+
+  <rect x="900" y="425" width="295" height="150" rx="22" fill="#e3f3ea" stroke="#2f7d62" stroke-width="2.2"/>
+  <text x="935" y="468" class="label">Expression branch</text>
+  <text x="935" y="501" class="small">gene-expression MLP</text>
+  <text x="935" y="527" class="small">+ trainable projection head</text>
+  <text x="935" y="553" class="tiny">outputs expression embedding</text>
+
+  <!-- Shared space -->
+  <rect x="1325" y="310" width="295" height="180" rx="26" fill="#203b63" stroke="#13213a" stroke-width="2.2"/>
+  <text x="1360" y="358" class="whiteLabel">Shared embedding space</text>
+  <text x="1360" y="394" class="whiteSmall">image and expression are</text>
+  <text x="1360" y="422" class="whiteSmall">comparable by similarity</text>
+  <rect x="1360" y="445" width="225" height="28" rx="8" fill="#314f80"/>
+  <text x="1380" y="465" class="whiteSmall">used later for retrieval</text>
+
+  <!-- Training objective -->
+  <rect x="1745" y="215" width="320" height="165" rx="22" fill="#fff2d8" stroke="#d97706" stroke-width="2.2"/>
+  <text x="1780" y="258" class="label">Classification objective</text>
+  <text x="1780" y="292" class="small">CE_img: H&amp;E predicts label</text>
+  <text x="1780" y="320" class="small">CE_expr: expression predicts label</text>
+  <text x="1780" y="348" class="tiny">teaches tissue identity</text>
+
+  <rect x="1745" y="430" width="320" height="170" rx="22" fill="#fff2d8" stroke="#d97706" stroke-width="2.2"/>
+  <text x="1780" y="473" class="label">Alignment objective</text>
+  <text x="1780" y="507" class="small">MSE or symmetric InfoNCE</text>
+  <text x="1780" y="535" class="small">matches paired modalities</text>
+  <text x="1780" y="563" class="tiny">makes the two branches comparable</text>
+
+  <rect x="1485" y="660" width="580" height="90" rx="22" fill="#13213a" stroke="#13213a" stroke-width="2.2"/>
+  <text x="1520" y="696" class="whiteLabel">Total loss used for the main experiments</text>
+  <text x="1520" y="728" class="whiteSmall">L_total = CE_img + CE_expr + lambda * L_align</text>
+
+  <!-- Labels + training control -->
+  <rect x="110" y="660" width="600" height="190" rx="22" fill="#fff8ed" stroke="#d97706" stroke-width="2.2"/>
+  <text x="145" y="705" class="label">Tissue labels used for supervision</text>
+  <text x="145" y="740" class="small">3-class: tumor / stroma / immune infiltration</text>
+  <text x="145" y="770" class="small">8-class: finer expert tissue categories</text>
+  <text x="145" y="805" class="tiny">3-class is more stable; 8-class tests harder fine-grained labels</text>
+
+  <rect x="775" y="660" width="570" height="190" rx="22" fill="#ecfdf5" stroke="#2f7d62" stroke-width="2.2"/>
+  <text x="810" y="705" class="label">Optimization and stopping rule</text>
+  <text x="810" y="740" class="small">AdamW, dropout 0.3, up to 8 epochs</text>
+  <text x="810" y="770" class="small">early stopping patience = 2</text>
+  <text x="810" y="800" class="small">monitor = validation expression macro-F1</text>
+  <text x="810" y="830" class="tiny">balanced sampler + sqrt inverse class weights handle imbalance</text>
+
+  <!-- Arrows -->
+  <path d="M400 350 L505 295" class="line"/>
+  <path d="M400 350 L505 500" class="line"/>
+  <path d="M790 295 L900 295" class="line"/>
+  <path d="M790 500 L900 500" class="greenLine"/>
+  <path d="M1195 295 C1250 295 1260 365 1325 385" class="line"/>
+  <path d="M1195 500 C1250 500 1260 435 1325 415" class="greenLine"/>
+  <path d="M1620 385 L1745 300" class="orangeLine"/>
+  <path d="M1620 415 L1745 515" class="orangeLine"/>
+  <path d="M1905 380 C1935 440 1935 595 1840 660" class="orangeLine"/>
+  <path d="M1905 600 C1935 625 1935 650 1840 660" class="orangeLine"/>
+
+  <!-- What changes in ablations -->
+  <text x="70" y="1015" class="section">What changes across experiments?</text>
+  <rect x="70" y="1048" width="2060" height="215" rx="30" class="box" fill="#fffdf6" stroke="#d8d2c3"/>
+
+  <rect x="115" y="1090" width="300" height="125" rx="20" fill="#ddeff5" stroke="#2f6f9f" stroke-width="2.2"/>
+  <text x="145" y="1130" class="label">Backbone</text>
+  <text x="145" y="1164" class="small">ResNet50 vs GigaPath</text>
+  <text x="145" y="1192" class="tiny">what image encoder is best?</text>
+
+  <rect x="475" y="1090" width="300" height="125" rx="20" fill="#eef2f7" stroke="#94a3b8" stroke-width="2.2"/>
+  <text x="505" y="1130" class="label">Crop / label detail</text>
+  <text x="505" y="1164" class="small">crop64 vs crop128</text>
+  <text x="505" y="1192" class="tiny">3-class vs 8-class</text>
+
+  <rect x="835" y="1090" width="350" height="125" rx="20" fill="#fff2d8" stroke="#d97706" stroke-width="2.2"/>
+  <text x="865" y="1130" class="label">Loss ablation</text>
+  <text x="865" y="1164" class="small">CE only, MSE, InfoNCE</text>
+  <text x="865" y="1192" class="tiny">lambda = 0.05 / 0.10 / 0.20 / 0.50</text>
+
+  <rect x="1245" y="1090" width="355" height="125" rx="20" fill="#ecfdf5" stroke="#2f7d62" stroke-width="2.2"/>
+  <text x="1275" y="1130" class="label">Training strategy</text>
+  <text x="1275" y="1164" class="small">frozen vs last-1/last-2 blocks</text>
+  <text x="1275" y="1192" class="tiny">constant LR vs warmup/cosine</text>
+
+  <rect x="1660" y="1090" width="355" height="125" rx="20" fill="#e9e3f6" stroke="#665191" stroke-width="2.2"/>
+  <text x="1690" y="1130" class="label">Evaluation</text>
+  <text x="1690" y="1164" class="small">accuracy, macro-F1, retrieval R@k</text>
+  <text x="1690" y="1192" class="tiny">does expression retrieve matching H&amp;E?</text>
+
+  <rect x="70" y="1300" width="2060" height="34" rx="11" fill="#13213a"/>
+  <text x="100" y="1324" class="whiteLabel">One sentence: the setup trains paired image and expression branches with classification + alignment, then ablations change one design choice at a time.</text>
+</svg>

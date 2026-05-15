@@ -1,0 +1,7 @@
+1. We started from a SAM3 intervention map: the immediate opportunity is to make the image/expression representation useful before replacing the whole segmentation model.
+2. The current training task is paired H&E crop plus VisiumHD expression, optimized into a shared embedding space with label and alignment losses.
+3. The experiment design isolates four choices: image backbone, label granularity, alignment loss, and whether to fine-tune the image encoder.
+4. The main result is not "one magic loss"; 3-class supervision is stable, InfoNCE helps shared retrieval structure, and partial GigaPath fine-tuning improves supervised/fused readouts.
+5. 8-class is harder for biological and statistical reasons: fine label ambiguity, class imbalance, and weak morphology separability for rare classes.
+6. Haiku is useful as a design reference because it formalizes shared-space contrastive learning, frozen molecular anchoring, projection heads, partial fine-tuning, and score-level fusion.
+7. The next SAM3 step should use the strongest validated representation for proposal/mask ranking while we test a Haiku-like molecular/text anchor later.

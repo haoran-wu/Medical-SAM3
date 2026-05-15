@@ -1,0 +1,860 @@
+<!-- Generate a simple table with factor analysis results
+factorID color weight totUMI topGene_byPval topGene_byFC
+-->
+
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>TSV Table</title>
+    <style>
+        table {
+            border-collapse: collapse;
+            width: 100%;
+        }
+        th, td {
+            border: 1px solid black;
+            padding: 8px;
+            text-align: left;
+        }
+        th {
+            background-color: #f2f2f2;
+        }
+        .color-box {
+            display: inline-block;
+            width: 75%;
+            height: 30px;
+            line-height: 30px;
+            text-align: center;
+            border: 1px solid #000;
+            margin: 0 auto;
+        }
+        .rgb-column {
+            width: 150px;
+        }
+
+        .figure-image {
+            width: 100%;
+            height: auto;
+            max-width: 100%;
+        }
+
+    </style>
+</head>
+
+<body>
+
+    <table>
+        <thead>
+            <tr>
+                
+                    <th>Factor</th>
+                    <th>Major Compartment</th>
+                    <th>Celltype</th>
+                
+                    <th>RGB</th>
+                
+                    <th>Weight</th>
+                
+                    <th>PostUMI</th>
+                
+                    <th>TopGene_pval</th>
+                
+                    <th>TopGene_specific</th>
+                
+                    <th>TopGene_fc</th>
+                
+                    <th>TopGene_weight</th>
+                
+            </tr>
+        </thead>
+        <tbody>
+            
+                <tr>
+                    
+                        <td>
+                            
+                                0
+                            
+                        </td>
+                    
+                        <td>
+                            Epithelial / Tumor Compartment
+                        </td>
+                    
+                        <td>
+                            Lung Adenocarcinoma / Epithelial Tumor Cells
+                        </td>
+                    
+                        <td>
+                            
+                                
+                                <div class="color-box rgb-column" style="background-color: rgb(255, 204, 255);">
+                                    <span style="color: #000;">
+                                        (255, 204, 255)
+                                    </span>
+                                </div>
+                            
+                        </td>
+                    
+                        <td>
+                            
+                                0.32058
+                            
+                        </td>
+                    
+                        <td>
+                            
+                                35588566
+                            
+                        </td>
+                    
+                        <td>
+                            
+                                CXCL14, SPINK1, CEACAM5, CEACAM6, NAPSA, IFI6, SLC34A2, CTSH, LGALS3BP, TMSB4X, MDK, HSPB1, LY6E, ECM1, LAPTM4B, AQP3, TMSB10, SYNGR2, HHLA2, HPGD
+                            
+                        </td>
+                    
+                        <td>
+                            
+                                CEACAM5, TMSB4X, IFI6, SPP1, SPINK1, NAPSA, WFDC2, ECM1, LGALS3BP, IFI27, SCGB3A2, S100A6, SYNGR2, TFF3, IFITM3, LY6E, S100A10, FTL, S100A4, MDK
+                            
+                        </td>
+                    
+                        <td>
+                            
+                                IL36RN, ALPG, CNTNAP2, SYT2, HMGCS2, PLA2G1B, CLDN6, ECM1, XAGE2, NMU, CEACAM5, IGFBPL1, AGT, GH2, GPX2, PLPPR1, FAM133A, GABBR2, FGG, SPTSSB
+                            
+                        </td>
+                    
+                        <td>
+                            
+                                TMSB4X, CD74, CXCL14, SFTPB, TMSB10, ACTB, CEACAM6, SPINK1, B2M, CTSH, IFI6, S100A6, SLC34A2, FTH1, CEACAM5, HSPB1, PIGR, NAPSA, CD9, SPP1
+                            
+                        </td>
+                    
+                </tr>
+            
+                <tr>
+                    
+                        <td>
+                            
+                                2
+                            
+                        </td>
+                    
+                        <td>
+                            Stromal Compartment
+                        </td>
+                    
+                        <td>
+                            Fibroblasts & Smooth Muscle Cells (Stromal / Mesenchymal)
+                        </td>
+                    
+                        <td>
+                            
+                                
+                                <div class="color-box rgb-column" style="background-color: rgb(255, 255, 0);">
+                                    <span style="color: #000;">
+                                        (255, 255, 0)
+                                    </span>
+                                </div>
+                            
+                        </td>
+                    
+                        <td>
+                            
+                                0.12098
+                            
+                        </td>
+                    
+                        <td>
+                            
+                                13430297
+                            
+                        </td>
+                    
+                        <td>
+                            
+                                TAGLN, MYL9, MYH11, ACTA2, MGP, COL3A1, A2M, COL1A2, DES, COL6A2, TIMP3, DCN, SPARC, COL1A1, MYLK, ADAMTS1, TPM2, IGFBP7, COL6A1, CALD1
+                            
+                        </td>
+                    
+                        <td>
+                            
+                                TAGLN, MYL9, MYH11, COL3A1, COL1A1, ACTA2, COL1A2, MGP, DES, CSRP1, TPM2, SPARC, A2M, TPM1, COL6A2, MYLK, TIMP3, DSTN, RHOB, LMOD1
+                            
+                        </td>
+                    
+                        <td>
+                            
+                                ACAN, ACTG2, MYH11, MYOCD, DES, KCNA5, CNN1, PLN, NTRK3, CASQ2, HAND2, SYNPO2, ATP1A2, PRIMA1, LDB3, LMOD1, HSPB7, FOXC2, GADL1, JPH2
+                            
+                        </td>
+                    
+                        <td>
+                            
+                                IGKC, TMSB4X, IGHG1, CD74, A2M, VIM, MGP, ACTB, TAGLN, COL3A1, MYL9, B2M, COL1A1, COL1A2, FTH1, TIMP3, FTL, SPARC, DUSP1, MYH11
+                            
+                        </td>
+                    
+                </tr>
+            
+                <tr>
+                    
+                        <td>
+                            
+                                1
+                            
+                        </td>
+                    
+                        <td>
+                            Epithelial / Tumor Compartment
+                        </td>
+                    
+                        <td>
+                            Lung Epithelial / Tumor Subpopulation
+                        </td>
+                    
+                        <td>
+                            
+                                
+                                <div class="color-box rgb-column" style="background-color: rgb(0, 255, 255);">
+                                    <span style="color: #fff;">
+                                        (0, 255, 255)
+                                    </span>
+                                </div>
+                            
+                        </td>
+                    
+                        <td>
+                            
+                                0.09516
+                            
+                        </td>
+                    
+                        <td>
+                            
+                                10563877
+                            
+                        </td>
+                    
+                        <td>
+                            
+                                WSB1, SLC22A31, RAB11FIP1, CCNL2, LAMA5, TCF25, CHD2, CEACAM5, VMP1, MUC1, ATP13A4, NKX2-1, IGSF9B, MROH1, ATP11A, ELF3, IFI44L, IFI44, ZNF117, PARP14
+                            
+                        </td>
+                    
+                        <td>
+                            
+                                WSB1, CCNL2, SLC22A31, VMP1, LAMA5, TCF25, CHD2, ELF3, RAB11FIP1, IFI44, IFI44L, MROH1, CDK5RAP3, IGSF9B, MLPH, PARP14, RNF213, SAT1, ZNF117, MUC4
+                            
+                        </td>
+                    
+                        <td>
+                            
+                                TEX55, ASPG, IFIT1B, UMODL1, CSKMT, TAS2R7, KRTAP9-9, CFAP97D1, IL1RAPL2, UFSP1, TSSK3, DNAH17, OR10H1, CES3, KRTAP22-2, DCST1, PCP4, CD5L, STKLD1, KRTAP6-1
+                            
+                        </td>
+                    
+                        <td>
+                            
+                                TMSB4X, SFTPB, CD74, WSB1, MUC1, CEACAM5, CEACAM6, CXCL14, SLC34A2, RAB11FIP1, IGKC, ACTB, TMSB10, IFI6, SPP1, B2M, HSPB1, SLC22A31, SAT1, S100A6
+                            
+                        </td>
+                    
+                </tr>
+            
+                <tr>
+                    
+                        <td>
+                            
+                                3
+                            
+                        </td>
+                    
+                        <td>
+                            Epithelial / Tumor Compartment
+                        </td>
+                    
+                        <td>
+                            Alveolar Type II (AT2) Cells
+                        </td>
+                    
+                        <td>
+                            
+                                
+                                <div class="color-box rgb-column" style="background-color: rgb(255, 84, 0);">
+                                    <span style="color: #fff;">
+                                        (255, 84, 0)
+                                    </span>
+                                </div>
+                            
+                        </td>
+                    
+                        <td>
+                            
+                                0.08725
+                            
+                        </td>
+                    
+                        <td>
+                            
+                                9685788
+                            
+                        </td>
+                    
+                        <td>
+                            
+                                SFTPB, LPCAT1, NPC2, CD74, CD9, RNASE1, NUPR1, SDC1, CXCL14, CTSH, CEACAM6, AZGP1, ADGRF5, SUSD2, FABP3, SFTA2, KRT8, APOD, SLC6A3, SPINT2
+                            
+                        </td>
+                    
+                        <td>
+                            
+                                SFTPB, LPCAT1, NPC2, CD74, SFTPC, NUPR1, RNASE1, CD9, DUSP1, MGP, VIM, CLU, LYZ, SDC1, APOD, ADGRF5, FABP3, AZGP1, TSPAN8, SLC6A3
+                            
+                        </td>
+                    
+                        <td>
+                            
+                                KCNJ13, NPY, ECEL1, OR52E8, KLB, CTSE, AC008397.1, PRAP1, SORCS2, SFTPB, GALNT14, SYT16, SLC6A3, CLPSL2, C1orf127, GPR27, ALPL, SYBU, OLIG1, ALKAL1
+                            
+                        </td>
+                    
+                        <td>
+                            
+                                SFTPB, CD74, TMSB4X, LPCAT1, CXCL14, NPC2, TMSB10, CEACAM6, ACTB, CTSH, CD9, RNASE1, B2M, S100A6, PIGR, FTH1, SPINK1, SLC34A2, KRT8, HSPB1
+                            
+                        </td>
+                    
+                </tr>
+            
+                <tr>
+                    
+                        <td>
+                            
+                                5
+                            
+                        </td>
+                    
+                        <td>
+                            Epithelial / Tumor Compartment
+                        </td>
+                    
+                        <td>
+                            Lung Epithelial / Alveolar Substate
+                        </td>
+                    
+                        <td>
+                            
+                                
+                                <div class="color-box rgb-column" style="background-color: rgb(84, 0, 255);">
+                                    <span style="color: #fff;">
+                                        (84, 0, 255)
+                                    </span>
+                                </div>
+                            
+                        </td>
+                    
+                        <td>
+                            
+                                0.06941
+                            
+                        </td>
+                    
+                        <td>
+                            
+                                7705637
+                            
+                        </td>
+                    
+                        <td>
+                            
+                                LPCAT1, CXCL14, PGGHG, ATP13A4, NUPR1, SLC6A3, BTBD9, ABCC3, TXNDC11, ERRFI1, ADGRF5, EMP2, KRT8, SDC1, LMO3, NELL1, WNK1, NKX2-1, DUSP6, IQGAP3
+                            
+                        </td>
+                    
+                        <td>
+                            
+                                LPCAT1, NUPR1, PGGHG, SLC6A3, ZBTB16, ATP13A4, DUSP1, BTBD9, TXNDC11, ERRFI1, ABCC3, MPRIP, IQGAP3, EMP2, PI15, ADGRF5, SAT1, VMP1, NEDD4L, KHDC4
+                            
+                        </td>
+                    
+                        <td>
+                            
+                                CCDC198, CLPSL1, LBX2, KIF18B, SLC3A1, IP6K3, OR52N5, OR52N1, PI15, LRRC9, KRT39, SLC30A8, CELA1, CLEC18A, IQGAP3, NGB, ZNF705A, NEIL3, PIMREG, C6orf223
+                            
+                        </td>
+                    
+                        <td>
+                            
+                                SFTPB, CXCL14, TMSB4X, LPCAT1, CD74, CTSH, ACTB, TMSB10, CD9, NPC2, CEACAM6, KRT8, SLC34A2, PIGR, MUC1, DUSP1, HSPB1, B2M, CLPTM1L, FTH1
+                            
+                        </td>
+                    
+                </tr>
+            
+                <tr>
+                    
+                        <td>
+                            
+                                8
+                            
+                        </td>
+                    
+                        <td>
+                            Immune Compartment
+                        </td>
+                    
+                        <td>
+                            Plasma Cells (IgG Dominant)
+                        </td>
+                    
+                        <td>
+                            
+                                
+                                <div class="color-box rgb-column" style="background-color: rgb(170, 170, 0);">
+                                    <span style="color: #fff;">
+                                        (170, 170, 0)
+                                    </span>
+                                </div>
+                            
+                        </td>
+                    
+                        <td>
+                            
+                                0.06660
+                            
+                        </td>
+                    
+                        <td>
+                            
+                                7393288
+                            
+                        </td>
+                    
+                        <td>
+                            
+                                IGKC, IGHG1, IGLC1, IGHM, IGHA1, JCHAIN, TXNDC5, MZB1, ITM2C, CXCR4, PIM2, IGHG3, A2M, PTGDS, C7, XBP1, CD79A, POU2AF1, PDK1, LUM
+                            
+                        </td>
+                    
+                        <td>
+                            
+                                IGHG1, IGKC, IGHM, IGLC1, XBP1, TXNDC5, SPP1, MZB1, ITM2C, SSR4, PIM2, TP53INP1, CHIT1, PDK1, HERPUD1, CD38, TENT5C, SEC11C, POU2AF1, DERL3
+                            
+                        </td>
+                    
+                        <td>
+                            
+                                IGHG1, IGKC, MEI1, IGLC1, MZB1, JSRP1, C2orf88, AMPD1, TNFRSF17, FCRL5, POU2AF1, PNOC, MIXL1, FAM30A, DERL3, CD79A, IGHM, TAS1R3, IGHE, RAB30
+                            
+                        </td>
+                    
+                        <td>
+                            
+                                IGKC, IGHG1, IGHA1, IGHM, IGLC1, CD74, TMSB4X, B2M, JCHAIN, A2M, FTL, TXNIP, VIM, FTH1, MGP, CXCR4, ACTB, TMSB10, IGHG3, TXNDC5
+                            
+                        </td>
+                    
+                </tr>
+            
+                <tr>
+                    
+                        <td>
+                            
+                                7
+                            
+                        </td>
+                    
+                        <td>
+                            Epithelial / Tumor Compartment
+                        </td>
+                    
+                        <td>
+                            Airway Epithelial Cells (Club, Goblet, and Ciliated cells)
+                        </td>
+                    
+                        <td>
+                            
+                                
+                                <div class="color-box rgb-column" style="background-color: rgb(0, 170, 170);">
+                                    <span style="color: #fff;">
+                                        (0, 170, 170)
+                                    </span>
+                                </div>
+                            
+                        </td>
+                    
+                        <td>
+                            
+                                0.06367
+                            
+                        </td>
+                    
+                        <td>
+                            
+                                7068193
+                            
+                        </td>
+                    
+                        <td>
+                            
+                                SCGB1A1, SCGB3A1, BPIFB1, MSMB, SLPI, MUC5B, CAPS, WFDC2, TPPP3, C9orf24, TSPAN1, C20orf85, GRP, CFAP157, LCN2, MS4A8, MUC5AC, ODF3B, KRT17, PIGR
+                            
+                        </td>
+                    
+                        <td>
+                            
+                                SCGB1A1, SCGB3A1, BPIFB1, MSMB, SLPI, MUC5B, CAPS, TPPP3, C9orf24, WFDC2, TSPAN1, C20orf85, GRP, ODF3B, LCN2, CFAP157, MS4A8, MUC5AC, KRT17, RSPH1
+                            
+                        </td>
+                    
+                        <td>
+                            
+                                MUC5AC, C20orf85, BPIFB1, C9orf24, TMEM190, CFAP52, C6orf118, ALOX15, MUC5B, WDR38, SCGB1A1, CROCC2, CDHR4, C11orf88, CFAP73, TTC29, ANKRD66, TEKT1, CACNG6, CAPSL
+                            
+                        </td>
+                    
+                        <td>
+                            
+                                SCGB1A1, SCGB3A1, BPIFB1, WFDC2, PIGR, MSMB, B2M, CD74, SLPI, MUC5B, CAPS, SAT1, S100A6, SFTPB, TPPP3, DUSP1, ODF3B, C9orf24, TSPAN1, IGKC
+                            
+                        </td>
+                    
+                </tr>
+            
+                <tr>
+                    
+                        <td>
+                            
+                                4
+                            
+                        </td>
+                    
+                        <td>
+                            Immune Compartment
+                        </td>
+                    
+                        <td>
+                            T Cells & B Cells (Lymphocytes)
+                        </td>
+                    
+                        <td>
+                            
+                                
+                                <div class="color-box rgb-column" style="background-color: rgb(0, 255, 84);">
+                                    <span style="color: #fff;">
+                                        (0, 255, 84)
+                                    </span>
+                                </div>
+                            
+                        </td>
+                    
+                        <td>
+                            
+                                0.05752
+                            
+                        </td>
+                    
+                        <td>
+                            
+                                6385204
+                            
+                        </td>
+                    
+                        <td>
+                            
+                                CXCR4, CCL19, IL7R, TRAC, MS4A1, TRBC2, LTB, BTG1, TRBC1, CD37, ETS1, SELL, RGS1, CYTIP, IKZF1, CXCL13, CD2, ZFP36L2, WIPF1, CD52
+                            
+                        </td>
+                    
+                        <td>
+                            
+                                CXCR4, CD74, IL7R, TRAC, CCL19, TRBC2, MS4A1, BTG1, LTB, CD37, TRBC1, TMSB4X, SELL, RGS1, CD52, CXCL13, LCP1, CLEC2D, CYTIP, IKZF1
+                            
+                        </td>
+                    
+                        <td>
+                            
+                                MS4A1, CLEC17A, NIBAN3, FDCSP, FLT3, FCRL3, PAX5, TCL1A, BLK, NCR3, CCR7, FCER2, FCRL1, LTA, IL17REL, CXCR5, VPREB3, PNMA3, TNFRSF13C, LILRA4
+                            
+                        </td>
+                    
+                        <td>
+                            
+                                IGKC, TMSB4X, IGHG1, CD74, B2M, CXCR4, ACTB, VIM, TMSB10, TXNIP, IGHA1, FTH1, ZFP36L2, BTG1, LYZ, OAZ1, C3, CCL19, RGS1, FTL
+                            
+                        </td>
+                    
+                </tr>
+            
+                <tr>
+                    
+                        <td>
+                            
+                                6
+                            
+                        </td>
+                    
+                        <td>
+                            Immune Compartment
+                        </td>
+                    
+                        <td>
+                            Macrophages / Monocytes (Myeloid Cells)
+                        </td>
+                    
+                        <td>
+                            
+                                
+                                <div class="color-box rgb-column" style="background-color: rgb(170, 0, 170);">
+                                    <span style="color: #fff;">
+                                        (170, 0, 170)
+                                    </span>
+                                </div>
+                            
+                        </td>
+                    
+                        <td>
+                            
+                                0.05493
+                            
+                        </td>
+                    
+                        <td>
+                            
+                                6098134
+                            
+                        </td>
+                    
+                        <td>
+                            
+                                SPP1, FTL, APOE, CTSB, CHIT1, LYZ, C1QC, CD68, IFI30, C1QA, GPNMB, SRGN, FCER1G, APOC1, C1QB, FTH1, LAPTM5, SLC11A1, MARCO, OLR1
+                            
+                        </td>
+                    
+                        <td>
+                            
+                                SPP1, FTL, APOE, CTSB, LYZ, CHIT1, C1QC, VIM, CD68, SRGN, C1QA, IFI30, GPNMB, C1QB, FCER1G, FTH1, LAPTM5, LGALS1, APOC1, SLC11A1
+                            
+                        </td>
+                    
+                        <td>
+                            
+                                MARCO, RBP4, MMP12, TM4SF19, IL1RN, AQP9, SLC11A1, AGRP, HTRA4, HK3, LILRA6, HAMP, SPP1, APOC1, KCP, ATP6V0D2, CHIT1, FCGR1A, APOC2, CCL7
+                            
+                        </td>
+                    
+                        <td>
+                            
+                                SPP1, FTL, CD74, TMSB4X, APOE, CTSB, FTH1, LYZ, B2M, VIM, ACTB, RNASE1, IGKC, CHIT1, TMSB10, SRGN, C1QC, SAT1, PSAP, IFI30
+                            
+                        </td>
+                    
+                </tr>
+            
+                <tr>
+                    
+                        <td>
+                            
+                                9
+                            
+                        </td>
+                    
+                        <td>
+                            Stromal Compartment
+                        </td>
+                    
+                        <td>
+                            Endothelial Cells
+                        </td>
+                    
+                        <td>
+                            
+                                
+                                <div class="color-box rgb-column" style="background-color: rgb(255, 0, 127);">
+                                    <span style="color: #fff;">
+                                        (255, 0, 127)
+                                    </span>
+                                </div>
+                            
+                        </td>
+                    
+                        <td>
+                            
+                                0.03804
+                            
+                        </td>
+                    
+                        <td>
+                            
+                                4222814
+                            
+                        </td>
+                    
+                        <td>
+                            
+                                SFTPC, SFTPA1, VWF, AQP1, ZFP36, CLDN5, EPAS1, AGER, SFTPD, SOCS3, CALCRL, CCL14, ACKR1, FCN3, PECAM1, EGFL7, DEPP1, CLDN18, RAMP3, HBA2
+                            
+                        </td>
+                    
+                        <td>
+                            
+                                SFTPC, SFTPA1, SFTPB, ZFP36, VWF, EPAS1, SFTPD, AQP1, SCGB3A1, SOCS3, AGER, CLDN5, PECAM1, SLPI, EGFL7, CALCRL, CCL14, FCN3, ACKR1, HBA2
+                            
+                        </td>
+                    
+                        <td>
+                            
+                                SLC6A4, WIF1, SFTPC, CLDN18, LGI3, ADRA1A, CA4, GPIHBP1, ARC, HTR3C, PPBP, SELE, STC1, SOX7, ZNF385B, CD300LG, FCN3, SEMA3G, CSF3, ACKR1
+                            
+                        </td>
+                    
+                        <td>
+                            
+                                SFTPC, IGKC, SFTPB, TMSB4X, IGHG1, CD74, ZFP36, SFTPA1, B2M, VIM, DUSP1, A2M, JUNB, TMSB10, ACTB, AQP1, FTH1, EPAS1, FTL, DEPP1
+                            
+                        </td>
+                    
+                </tr>
+            
+                <tr>
+                    
+                        <td>
+                            
+                                10
+                            
+                        </td>
+                    
+                        <td>
+                            Immune Compartment
+                        </td>
+                    
+                        <td>
+                            Plasma Cells (IgA Dominant)
+                        </td>
+                    
+                        <td>
+                            
+                                
+                                <div class="color-box rgb-column" style="background-color: rgb(153, 76, 0);">
+                                    <span style="color: #fff;">
+                                        (153, 76, 0)
+                                    </span>
+                                </div>
+                            
+                        </td>
+                    
+                        <td>
+                            
+                                0.02447
+                            
+                        </td>
+                    
+                        <td>
+                            
+                                2716310
+                            
+                        </td>
+                    
+                        <td>
+                            
+                                IGKC, IGHA1, JCHAIN, IGHG3, IGLC1, IGHM, TXNDC5, IGHG1, IGHD, DERL3, MZB1, PIM2, A2M, ITM2C, IGLC7, PTGDS, CD79A, DCN, HERPUD1, POU2AF1
+                            
+                        </td>
+                    
+                        <td>
+                            
+                                IGHA1, IGKC, JCHAIN, IGHG3, IGLC1, TXNDC5, SCGB1A1, A2M, IGHD, DERL3, IGLC7, DCN, MFAP4, SCGB3A1, MS4A2, ITM2C, HERPUD1, PIM2, MZB1, LTBP2
+                            
+                        </td>
+                    
+                        <td>
+                            
+                                IGHA1, IGLC7, IGHG3, JCHAIN, IGHD, IGKC, IGHE, DERL3, AMPD1, NXPE4, TNFRSF17, IGHA2, MZB1, MEI1, IGLC1, TMC2, TMEM132C, MS4A2, BMP6, POU2AF1
+                            
+                        </td>
+                    
+                        <td>
+                            
+                                IGKC, IGHA1, IGHG1, JCHAIN, IGHG3, IGLC1, IGHM, CD74, TMSB4X, B2M, A2M, VIM, FTL, TXNDC5, TXNIP, FTH1, MGP, DCN, TMSB10, PTGDS
+                            
+                        </td>
+                    
+                </tr>
+            
+                <tr>
+                    
+                        <td>
+                            
+                                11
+                            
+                        </td>
+                    
+                        <td>
+                            Immune Compartment
+                        </td>
+                    
+                        <td>
+                            Plasma Cells (IgM Dominant / Highly Active)
+                        </td>
+                    
+                        <td>
+                            
+                                
+                                <div class="color-box rgb-column" style="background-color: rgb(0, 115, 0);">
+                                    <span style="color: #fff;">
+                                        (0, 115, 0)
+                                    </span>
+                                </div>
+                            
+                        </td>
+                    
+                        <td>
+                            
+                                0.00139
+                            
+                        </td>
+                    
+                        <td>
+                            
+                                154527
+                            
+                        </td>
+                    
+                        <td>
+                            
+                                IGHM, IGKC, JCHAIN, IGHA1, IGLC1, IGHG1, TXNDC5, PKD1L1, MZB1, PIM2, HERPUD1, CD79A, DERL3, XBP1, CXCR4, PRDM1, ITM2C, IRF4, SLAMF7, BTG2
+                            
+                        </td>
+                    
+                        <td>
+                            
+                                IGHM, JCHAIN, PKD1L1, TXNDC5, COL3A1, HERPUD1, SPP1, SFRP4, VCAN, C1QTNF1, PRDX4, EFCAB2, CDC14B, EIF2AK3, HYOU1, C3AR1, ISLR, NUMBL, NKAPD1, GLI3
+                            
+                        </td>
+                    
+                        <td>
+                            
+                                IGHM, PKD1L1, JCHAIN, IRF4, LAX1, MZB1, IGKC, DERL3, TNFRSF17, SLAMF7, FAM30A, FCRL5, CD79A, IGLC1, RAB30, POU2AF1, P2RX5, TXNDC5, ZBP1, PIM2
+                            
+                        </td>
+                    
+                        <td>
+                            
+                                IGHM, IGKC, IGHG1, JCHAIN, IGHA1, CD74, B2M, TMSB4X, IGLC1, FTL, TXNIP, A2M, VIM, TXNDC5, TMSB10, MGP, ACTB, FTH1, CXCR4, XBP1
+                            
+                        </td>
+                    
+                </tr>
+            
+        </tbody>
+    </table>
+
+
+
+</body>
+</html>

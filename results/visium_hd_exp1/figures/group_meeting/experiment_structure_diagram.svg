@@ -1,0 +1,172 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1800" height="1180" viewBox="0 0 1800 1180">
+  <defs>
+    <marker id="arrow" markerWidth="12" markerHeight="12" refX="10" refY="6" orient="auto">
+      <path d="M2,2 L10,6 L2,10 Z" fill="#465261"/>
+    </marker>
+    <marker id="arrowBlue" markerWidth="12" markerHeight="12" refX="10" refY="6" orient="auto">
+      <path d="M2,2 L10,6 L2,10 Z" fill="#2f6f9f"/>
+    </marker>
+    <marker id="arrowOrange" markerWidth="12" markerHeight="12" refX="10" refY="6" orient="auto">
+      <path d="M2,2 L10,6 L2,10 Z" fill="#c06a13"/>
+    </marker>
+    <filter id="shadow" x="-10%" y="-10%" width="120%" height="120%">
+      <feDropShadow dx="0" dy="3" stdDeviation="4" flood-color="#000000" flood-opacity="0.13"/>
+    </filter>
+    <style>
+      .title { font: 700 42px Arial, sans-serif; fill: #13213a; }
+      .subtitle { font: 400 22px Arial, sans-serif; fill: #5f6f7e; }
+      .section { font: 700 22px Arial, sans-serif; fill: #13213a; }
+      .label { font: 700 19px Arial, sans-serif; fill: #13213a; }
+      .small { font: 400 16px Arial, sans-serif; fill: #374151; }
+      .tiny { font: 400 14px Arial, sans-serif; fill: #5f6f7e; }
+      .white { fill: #ffffff; }
+      .whiteText { font: 700 18px Arial, sans-serif; fill: #ffffff; }
+      .note { font: 700 15px Arial, sans-serif; fill: #7c4a03; }
+      .box { stroke-width: 2; filter: url(#shadow); }
+      .line { stroke: #465261; stroke-width: 3; fill: none; marker-end: url(#arrow); }
+      .blueLine { stroke: #2f6f9f; stroke-width: 3; fill: none; marker-end: url(#arrowBlue); }
+      .orangeLine { stroke: #c06a13; stroke-width: 3; fill: none; marker-end: url(#arrowOrange); }
+      .dash { stroke-dasharray: 8 7; }
+    </style>
+  </defs>
+
+  <rect x="0" y="0" width="1800" height="1180" fill="#f7f3ea"/>
+
+  <text x="70" y="70" class="title">Medical-SAM3 / VisiumHD Exp1: Experiment Structure</text>
+  <text x="72" y="110" class="subtitle">Training checkpoints are produced first; retrieval is a separate downstream evaluation run on selected checkpoints.</text>
+
+  <!-- Legend -->
+  <rect x="1245" y="42" width="485" height="108" rx="18" fill="#fffdf6" stroke="#d8d2c3" stroke-width="2"/>
+  <rect x="1270" y="70" width="28" height="18" rx="4" fill="#ddeff5" stroke="#2f6f9f"/>
+  <text x="1310" y="85" class="tiny">Replaceable / design choice</text>
+  <rect x="1270" y="100" width="28" height="18" rx="4" fill="#e3f3ea" stroke="#3f8f75"/>
+  <text x="1310" y="115" class="tiny">Trainable or fine-tuned</text>
+  <rect x="1510" y="70" width="28" height="18" rx="4" fill="#fff2d8" stroke="#d97706"/>
+  <text x="1550" y="85" class="tiny">Loss / supervision</text>
+  <rect x="1510" y="100" width="28" height="18" rx="4" fill="#e9e3f6" stroke="#665191"/>
+  <text x="1550" y="115" class="tiny">Post-training evaluation</text>
+
+  <!-- Input -->
+  <text x="70" y="185" class="section">1. Paired training sample</text>
+  <rect x="70" y="215" width="430" height="220" rx="24" class="box" fill="#fffdf6" stroke="#d8d2c3"/>
+  <text x="105" y="260" class="label">VisiumHD Exp1 paired data</text>
+  <text x="105" y="300" class="small">Each spatial location gives:</text>
+  <text x="126" y="334" class="small">H&amp;E crop</text>
+  <text x="126" y="366" class="small">18,085-gene expression vector</text>
+  <text x="126" y="398" class="small">Tissue label: 3-class or 8-class</text>
+  <rect x="94" y="450" width="382" height="55" rx="14" fill="#f8e1e4" stroke="#aa3a45" stroke-width="2"/>
+  <text x="118" y="482" class="note">Important: label is supervision, not final SAM3 output.</text>
+
+  <!-- Branch experiment choices -->
+  <text x="610" y="185" class="section">2. Experiment branches: what was changed?</text>
+  <rect x="585" y="215" width="1090" height="220" rx="24" class="box" fill="#ffffff" stroke="#d8d2c3"/>
+  <rect x="625" y="250" width="230" height="140" rx="18" fill="#ddeff5" stroke="#2f6f9f" stroke-width="2"/>
+  <text x="650" y="285" class="label">Backbone baseline</text>
+  <text x="650" y="323" class="small">ResNet50</text>
+  <text x="650" y="352" class="small">GigaPath</text>
+  <text x="650" y="381" class="tiny">Question: image encoder matters?</text>
+
+  <rect x="890" y="250" width="230" height="140" rx="18" fill="#ddeff5" stroke="#2f6f9f" stroke-width="2"/>
+  <text x="915" y="285" class="label">Label granularity</text>
+  <text x="915" y="323" class="small">3-class coarse</text>
+  <text x="915" y="352" class="small">8-class fine</text>
+  <text x="915" y="381" class="tiny">Question: coarse vs fine target?</text>
+
+  <rect x="1155" y="250" width="230" height="140" rx="18" fill="#ddeff5" stroke="#2f6f9f" stroke-width="2"/>
+  <text x="1180" y="285" class="label">Embedding size</text>
+  <text x="1180" y="323" class="small">embed128</text>
+  <text x="1180" y="352" class="small">embed512</text>
+  <text x="1180" y="381" class="tiny">Note: embed512 has training only.</text>
+
+  <rect x="1420" y="250" width="215" height="140" rx="18" fill="#e3f3ea" stroke="#3f8f75" stroke-width="2"/>
+  <text x="1445" y="285" class="label">Fine-tuning</text>
+  <text x="1445" y="323" class="small">Frozen</text>
+  <text x="1445" y="352" class="small">Last-1 block</text>
+  <text x="1445" y="381" class="small">Last-2 blocks</text>
+
+  <path d="M500 325 C540 325 548 325 585 325" class="line"/>
+
+  <!-- Architecture -->
+  <text x="70" y="535" class="section">3. What is trained inside one checkpoint?</text>
+  <rect x="70" y="565" width="1605" height="305" rx="26" class="box" fill="#fffdf6" stroke="#d8d2c3"/>
+
+  <rect x="105" y="625" width="220" height="85" rx="18" fill="#f1f5f9" stroke="#94a3b8" stroke-width="2"/>
+  <text x="135" y="660" class="label">H&amp;E crop</text>
+  <text x="135" y="690" class="tiny">crop128, resize if needed</text>
+
+  <rect x="390" y="600" width="280" height="135" rx="20" fill="#ddeff5" stroke="#2f6f9f" stroke-width="2"/>
+  <text x="420" y="635" class="label">Image encoder</text>
+  <text x="420" y="668" class="small">ResNet50 or GigaPath</text>
+  <text x="420" y="698" class="tiny">GigaPath can be frozen / last-1 / last-2</text>
+
+  <rect x="735" y="600" width="240" height="135" rx="20" fill="#e3f3ea" stroke="#3f8f75" stroke-width="2"/>
+  <text x="765" y="635" class="label">Image projection</text>
+  <text x="765" y="668" class="small">trainable head</text>
+  <text x="765" y="698" class="tiny">shared embedding</text>
+
+  <rect x="105" y="755" width="220" height="85" rx="18" fill="#f1f5f9" stroke="#94a3b8" stroke-width="2"/>
+  <text x="135" y="790" class="label">Expression vector</text>
+  <text x="135" y="820" class="tiny">18,085 genes</text>
+
+  <rect x="390" y="745" width="280" height="110" rx="20" fill="#e3f3ea" stroke="#3f8f75" stroke-width="2"/>
+  <text x="420" y="782" class="label">Expression MLP</text>
+  <text x="420" y="815" class="small">trainable molecular branch</text>
+
+  <rect x="735" y="745" width="240" height="110" rx="20" fill="#e3f3ea" stroke="#3f8f75" stroke-width="2"/>
+  <text x="765" y="782" class="label">Expression projection</text>
+  <text x="765" y="815" class="small">trainable head</text>
+
+  <rect x="1070" y="650" width="240" height="135" rx="24" fill="#203b63" stroke="#13213a" stroke-width="2"/>
+  <text x="1100" y="695" class="whiteText">Shared embedding</text>
+  <text x="1100" y="730" class="whiteText">space</text>
+  <text x="1100" y="758" class="tiny white">image and expression live here</text>
+
+  <rect x="1400" y="612" width="230" height="95" rx="18" fill="#fff2d8" stroke="#d97706" stroke-width="2"/>
+  <text x="1425" y="647" class="label">Shared classifier</text>
+  <text x="1425" y="677" class="tiny">CE_img + CE_expr</text>
+
+  <rect x="1400" y="742" width="230" height="95" rx="18" fill="#fff2d8" stroke="#d97706" stroke-width="2"/>
+  <text x="1425" y="777" class="label">Alignment loss</text>
+  <text x="1425" y="807" class="tiny">MSE or symmetric InfoNCE</text>
+
+  <path d="M325 668 L390 668" class="line"/>
+  <path d="M670 668 L735 668" class="line"/>
+  <path d="M975 668 C1010 668 1030 685 1070 700" class="line"/>
+  <path d="M325 798 L390 798" class="line"/>
+  <path d="M670 800 L735 800" class="line"/>
+  <path d="M975 800 C1010 800 1030 755 1070 735" class="line"/>
+  <path d="M1310 700 L1400 660" class="orangeLine"/>
+  <path d="M1310 735 L1400 790" class="orangeLine"/>
+
+  <!-- Outputs -->
+  <text x="70" y="955" class="section">4. What happens after training?</text>
+  <rect x="70" y="985" width="350" height="125" rx="22" class="box" fill="#e3f3ea" stroke="#3f8f75"/>
+  <text x="105" y="1023" class="label">Training output</text>
+  <text x="105" y="1058" class="small">best.pt checkpoint</text>
+  <text x="105" y="1088" class="tiny">selected by val expr macro-F1</text>
+
+  <rect x="525" y="970" width="410" height="155" rx="22" class="box" fill="#fff2d8" stroke="#d97706"/>
+  <text x="560" y="1010" class="label">Classification readout</text>
+  <text x="560" y="1045" class="small">val expr acc / macro-F1</text>
+  <text x="560" y="1075" class="small">val image acc</text>
+  <text x="560" y="1105" class="tiny">This exists for all 33 training rows.</text>
+
+  <rect x="1035" y="970" width="430" height="155" rx="22" class="box" fill="#e9e3f6" stroke="#665191"/>
+  <text x="1070" y="1010" class="label">Retrieval evaluation</text>
+  <text x="1070" y="1045" class="small">expression query -> image gallery</text>
+  <text x="1070" y="1075" class="small">R@1 / R@5 / R@10 / fused R@1</text>
+  <text x="1070" y="1105" class="tiny">Done for 28 of 33 training rows.</text>
+
+  <rect x="1515" y="985" width="215" height="125" rx="22" class="box" fill="#f8e1e4" stroke="#aa3a45"/>
+  <text x="1540" y="1022" class="label">Not run yet</text>
+  <text x="1540" y="1055" class="tiny">embed512 GigaPath 3-class</text>
+  <text x="1540" y="1082" class="tiny">GigaPath 8-class last-2</text>
+
+  <path d="M420 1048 L525 1048" class="line"/>
+  <path d="M420 1048 C690 925 835 925 1035 1048" class="blueLine dash"/>
+  <path d="M1465 1048 L1515 1048" class="line dash"/>
+
+  <!-- Key message -->
+  <rect x="70" y="1138" width="1660" height="30" rx="10" fill="#13213a"/>
+  <text x="95" y="1160" class="whiteText">Key message: backbone/loss/fine-tuning are training choices; retrieval is a downstream test of the learned shared embedding, not a training metric.</text>
+</svg>

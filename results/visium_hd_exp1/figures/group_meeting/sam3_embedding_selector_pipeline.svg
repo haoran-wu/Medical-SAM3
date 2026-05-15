@@ -1,0 +1,127 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="2200" height="900" viewBox="0 0 2200 900">
+  <defs>
+    <marker id="arrow" markerWidth="13" markerHeight="13" refX="11" refY="6.5" orient="auto">
+      <path d="M2,2 L11,6.5 L2,11 Z" fill="#465261"/>
+    </marker>
+    <marker id="blueArrow" markerWidth="13" markerHeight="13" refX="11" refY="6.5" orient="auto">
+      <path d="M2,2 L11,6.5 L2,11 Z" fill="#2f6f9f"/>
+    </marker>
+    <marker id="greenArrow" markerWidth="13" markerHeight="13" refX="11" refY="6.5" orient="auto">
+      <path d="M2,2 L11,6.5 L2,11 Z" fill="#2f7d62"/>
+    </marker>
+    <marker id="purpleArrow" markerWidth="13" markerHeight="13" refX="11" refY="6.5" orient="auto">
+      <path d="M2,2 L11,6.5 L2,11 Z" fill="#665191"/>
+    </marker>
+    <filter id="shadow" x="-8%" y="-8%" width="116%" height="116%">
+      <feDropShadow dx="0" dy="3" stdDeviation="4" flood-color="#000000" flood-opacity="0.13"/>
+    </filter>
+    <style>
+      .title { font: 700 42px Arial, sans-serif; fill: #13213a; }
+      .subtitle { font: 400 22px Arial, sans-serif; fill: #5f6f7e; }
+      .section { font: 700 23px Arial, sans-serif; fill: #13213a; }
+      .label { font: 700 20px Arial, sans-serif; fill: #13213a; }
+      .small { font: 400 17px Arial, sans-serif; fill: #374151; }
+      .tiny { font: 400 14px Arial, sans-serif; fill: #5f6f7e; }
+      .whiteLabel { font: 700 20px Arial, sans-serif; fill: #ffffff; }
+      .whiteSmall { font: 400 16px Arial, sans-serif; fill: #ffffff; }
+      .box { stroke-width: 2.2; filter: url(#shadow); }
+      .line { stroke: #465261; stroke-width: 3.2; fill: none; marker-end: url(#arrow); }
+      .blueLine { stroke: #2f6f9f; stroke-width: 3.2; fill: none; marker-end: url(#blueArrow); }
+      .greenLine { stroke: #2f7d62; stroke-width: 3.2; fill: none; marker-end: url(#greenArrow); }
+      .purpleLine { stroke: #665191; stroke-width: 3.2; fill: none; marker-end: url(#purpleArrow); }
+      .dash { stroke-dasharray: 9 8; }
+      .tag { font: 700 15px Arial, sans-serif; fill: #ffffff; }
+    </style>
+  </defs>
+
+  <rect width="2200" height="900" fill="#f7f3ea"/>
+  <text x="70" y="65" class="title">How the H&amp;E-Expression Model Helps SAM3</text>
+  <text x="72" y="103" class="subtitle">SAM3 proposes candidate masks; the trained shared-space model acts as a biology-aware selector / ranker.</text>
+
+  <!-- Stage 1 -->
+  <rect x="70" y="170" width="330" height="430" rx="26" class="box" fill="#fffdf6" stroke="#d8d2c3"/>
+  <text x="105" y="215" class="section">1. H&amp;E image</text>
+  <rect x="115" y="255" width="240" height="230" rx="18" fill="#eef2f7" stroke="#94a3b8" stroke-width="2"/>
+  <path d="M150 310 C210 260 280 305 330 280" stroke="#94a3b8" stroke-width="8" fill="none" opacity="0.75"/>
+  <path d="M145 380 C220 330 270 405 335 370" stroke="#94a3b8" stroke-width="8" fill="none" opacity="0.75"/>
+  <circle cx="200" cy="350" r="26" fill="#dbeafe" stroke="#2f6f9f" stroke-width="3"/>
+  <circle cx="275" cy="350" r="26" fill="#fce7f3" stroke="#aa3a45" stroke-width="3"/>
+  <text x="125" y="530" class="small">Whole H&amp;E tissue image</text>
+  <text x="125" y="557" class="tiny">No final mask yet.</text>
+
+  <!-- Stage 2 SAM3 proposals -->
+  <rect x="505" y="135" width="380" height="500" rx="26" class="box" fill="#ddeff5" stroke="#2f6f9f"/>
+  <text x="540" y="185" class="section">2. SAM3 proposes masks</text>
+  <text x="540" y="222" class="small">SAM3 generates many candidate</text>
+  <text x="540" y="248" class="small">masks / boxes / regions.</text>
+  <rect x="555" y="295" width="96" height="82" rx="18" fill="#ffffff" stroke="#2f6f9f" stroke-width="3"/>
+  <rect x="670" y="270" width="96" height="122" rx="18" fill="#ffffff" stroke="#2f6f9f" stroke-width="3"/>
+  <rect x="785" y="315" width="60" height="75" rx="16" fill="#ffffff" stroke="#2f6f9f" stroke-width="3"/>
+  <rect x="590" y="430" width="95" height="76" rx="18" fill="#ffffff" stroke="#2f6f9f" stroke-width="3"/>
+  <rect x="710" y="415" width="115" height="92" rx="18" fill="#ffffff" stroke="#2f6f9f" stroke-width="3"/>
+  <text x="540" y="565" class="tiny">At this stage SAM3 has candidates,</text>
+  <text x="540" y="590" class="tiny">but it does not know which one best matches biology.</text>
+
+  <!-- Stage 3 crop/pool candidates -->
+  <rect x="990" y="170" width="325" height="430" rx="26" class="box" fill="#fffdf6" stroke="#d8d2c3"/>
+  <text x="1025" y="215" class="section">3. Crop / pool each candidate</text>
+  <text x="1025" y="252" class="small">For each SAM3 mask:</text>
+  <text x="1050" y="285" class="small">crop H&amp;E region</text>
+  <text x="1050" y="315" class="small">or pool image features</text>
+  <rect x="1050" y="360" width="95" height="75" rx="12" fill="#eef2f7" stroke="#94a3b8" stroke-width="2"/>
+  <rect x="1090" y="390" width="95" height="75" rx="12" fill="#eef2f7" stroke="#94a3b8" stroke-width="2"/>
+  <rect x="1130" y="420" width="95" height="75" rx="12" fill="#eef2f7" stroke="#94a3b8" stroke-width="2"/>
+  <text x="1025" y="540" class="tiny">Each candidate becomes an image embedding.</text>
+
+  <!-- Stage 4 trained model -->
+  <rect x="1405" y="135" width="420" height="500" rx="26" class="box" fill="#e9e3f6" stroke="#665191"/>
+  <text x="1440" y="185" class="section">4. Shared-space selector</text>
+  <rect x="1455" y="235" width="315" height="105" rx="18" fill="#203b63" stroke="#13213a" stroke-width="2"/>
+  <text x="1485" y="275" class="whiteLabel">Trained H&amp;E-expression</text>
+  <text x="1485" y="307" class="whiteSmall">shared-space model</text>
+  <rect x="1455" y="380" width="150" height="82" rx="16" fill="#e3f3ea" stroke="#2f7d62" stroke-width="2"/>
+  <text x="1478" y="412" class="label">Image emb.</text>
+  <text x="1478" y="438" class="tiny">from candidates</text>
+  <rect x="1620" y="380" width="150" height="82" rx="16" fill="#e3f3ea" stroke="#2f7d62" stroke-width="2"/>
+  <text x="1643" y="412" class="label">Expr emb.</text>
+  <text x="1643" y="438" class="tiny">query / tissue target</text>
+  <rect x="1510" y="505" width="205" height="72" rx="16" fill="#fff2d8" stroke="#d97706" stroke-width="2"/>
+  <text x="1545" y="535" class="label">similarity score</text>
+  <text x="1545" y="560" class="tiny">rank candidates: top-k</text>
+
+  <!-- Stage 5 output -->
+  <rect x="1905" y="170" width="245" height="430" rx="26" class="box" fill="#fffdf6" stroke="#d8d2c3"/>
+  <text x="1935" y="215" class="section">5. Biology-guided result</text>
+  <rect x="1940" y="285" width="165" height="165" rx="20" fill="#13213a" stroke="#13213a"/>
+  <path d="M1980 325 C2020 280 2080 330 2070 390 C2050 445 1980 430 1975 375 Z" fill="#ffffff"/>
+  <text x="1935" y="500" class="small">Use top-k candidates to:</text>
+  <text x="1955" y="530" class="tiny">select best mask</text>
+  <text x="1955" y="555" class="tiny">rank masks / prompts</text>
+  <text x="1955" y="580" class="tiny">retrieve exemplars as reference</text>
+
+  <!-- Query examples top -->
+  <rect x="1095" y="675" width="650" height="120" rx="22" fill="#fff2d8" stroke="#d97706" stroke-width="2"/>
+  <text x="1125" y="715" class="label">What can be the query?</text>
+  <text x="1125" y="750" class="small">gene expression profile, tissue class target, or retrieved reference embedding</text>
+  <text x="1125" y="778" class="tiny">Example: find masks whose H&amp;E region best matches immune-infiltration-like expression.</text>
+
+  <!-- Comparison to reference -->
+  <rect x="70" y="690" width="830" height="135" rx="22" fill="#f8e1e4" stroke="#aa3a45" stroke-width="2"/>
+  <text x="105" y="730" class="label">Analogy to the reference figure</text>
+  <text x="105" y="765" class="small">Reference pipeline: SAM proposals + CLIP/text query -> top-k regions.</text>
+  <text x="105" y="795" class="small">This pipeline: SAM3 proposals + H&amp;E-expression query -> top-k biologically relevant masks.</text>
+
+  <!-- Arrows -->
+  <path d="M400 385 L505 385" class="line"/>
+  <path d="M885 385 L990 385" class="line"/>
+  <path d="M1315 385 L1405 385" class="line"/>
+  <path d="M1825 385 L1905 385" class="line"/>
+  <path d="M1595 340 L1530 380" class="greenLine"/>
+  <path d="M1630 340 L1695 380" class="greenLine"/>
+  <path d="M1530 462 L1585 505" class="greenLine"/>
+  <path d="M1695 462 L1640 505" class="greenLine"/>
+  <path d="M1745 735 C1800 735 1840 585 1905 535" class="purpleLine dash"/>
+
+  <rect x="70" y="850" width="2080" height="32" rx="10" fill="#13213a"/>
+  <text x="105" y="873" class="whiteLabel">Key message: the trained model is not the segmenter; it is the biology-aware selector that helps SAM3 choose or rank candidate masks.</text>
+</svg>

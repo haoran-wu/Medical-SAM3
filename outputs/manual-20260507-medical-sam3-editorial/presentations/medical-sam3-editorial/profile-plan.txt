@@ -1,0 +1,21 @@
+Task mode: create from existing experiment outputs, with the prior deck treated only as a content source.
+Primary deck-profile: engineering-platform.
+Secondary gates: template/source discipline from the user's requested Future Directions slide.
+
+Required proof objects:
+- One SAM3 pipeline map showing where the new training work intervenes.
+- One current training architecture map showing H&E and expression towers.
+- One experiment matrix slide explaining backbone, label granularity, loss, and fine-tuning choices.
+- Metric evidence tied to the architecture: classification, retrieval, loss behavior.
+- One Haiku comparison slide that explains why the next strategy uses contrastive alignment and partial fine-tuning.
+- One next-decision slide that separates what is ready now from what should be tested next.
+
+Source/asset requirements:
+- Use local group-meeting figures from results/visium_hd_exp1/figures/group_meeting.
+- Use final snapshot metrics from results/visium_hd_exp1/summaries/final_group_meeting_results_20260507.md/json.
+- Do not use checkpoint/model artifacts or raw HPC logs in the deck.
+- Do not overwrite the previous PPT. Export a new v2 editorial deck.
+
+Known missing inputs:
+- No final MUSK result yet because access to the gated Hugging Face repository is pending.
+- No rendered visual QA from PowerPoint itself unless LibreOffice rendering is explicitly requested.

@@ -1,0 +1,182 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1800" height="1180" viewBox="0 0 1800 1180">
+  <defs>
+    <marker id="arrow" markerWidth="12" markerHeight="12" refX="10" refY="6" orient="auto">
+      <path d="M2,2 L10,6 L2,10 Z" fill="#465261"/>
+    </marker>
+    <marker id="blueArrow" markerWidth="12" markerHeight="12" refX="10" refY="6" orient="auto">
+      <path d="M2,2 L10,6 L2,10 Z" fill="#2f6f9f"/>
+    </marker>
+    <marker id="greenArrow" markerWidth="12" markerHeight="12" refX="10" refY="6" orient="auto">
+      <path d="M2,2 L10,6 L2,10 Z" fill="#2f7d62"/>
+    </marker>
+    <marker id="orangeArrow" markerWidth="12" markerHeight="12" refX="10" refY="6" orient="auto">
+      <path d="M2,2 L10,6 L2,10 Z" fill="#c06a13"/>
+    </marker>
+    <filter id="shadow" x="-10%" y="-10%" width="120%" height="120%">
+      <feDropShadow dx="0" dy="3" stdDeviation="4" flood-color="#000000" flood-opacity="0.13"/>
+    </filter>
+    <style>
+      .title { font: 700 40px Arial, sans-serif; fill: #13213a; }
+      .subtitle { font: 400 21px Arial, sans-serif; fill: #5f6f7e; }
+      .section { font: 700 23px Arial, sans-serif; fill: #13213a; }
+      .label { font: 700 18px Arial, sans-serif; fill: #13213a; }
+      .small { font: 400 15px Arial, sans-serif; fill: #374151; }
+      .tiny { font: 400 13px Arial, sans-serif; fill: #5f6f7e; }
+      .whiteLabel { font: 700 18px Arial, sans-serif; fill: #ffffff; }
+      .whiteTiny { font: 400 13px Arial, sans-serif; fill: #ffffff; }
+      .note { font: 700 14px Arial, sans-serif; fill: #7c4a03; }
+      .box { stroke-width: 2; filter: url(#shadow); }
+      .line { stroke: #465261; stroke-width: 3; fill: none; marker-end: url(#arrow); }
+      .blueLine { stroke: #2f6f9f; stroke-width: 3; fill: none; marker-end: url(#blueArrow); }
+      .greenLine { stroke: #2f7d62; stroke-width: 3; fill: none; marker-end: url(#greenArrow); }
+      .orangeLine { stroke: #c06a13; stroke-width: 3; fill: none; marker-end: url(#orangeArrow); }
+      .dash { stroke-dasharray: 8 7; }
+    </style>
+  </defs>
+
+  <rect width="1800" height="1180" fill="#f7f3ea"/>
+  <text x="60" y="62" class="title">Medical-SAM3 / VisiumHD Exp1: Training + Evaluation Map</text>
+  <text x="62" y="96" class="subtitle">Input -> two-tower training -> experiment branches -> retrieval for SAM3 mask / prompt ranking.</text>
+
+  <rect x="1260" y="30" width="470" height="100" rx="16" fill="#fffdf6" stroke="#d8d2c3" stroke-width="2"/>
+  <rect x="1285" y="57" width="25" height="16" rx="4" fill="#ddeff5" stroke="#2f6f9f"/>
+  <text x="1322" y="70" class="tiny">Replaceable design choice</text>
+  <rect x="1285" y="88" width="25" height="16" rx="4" fill="#e3f3ea" stroke="#2f7d62"/>
+  <text x="1322" y="101" class="tiny">Trainable / fine-tuned module</text>
+  <rect x="1512" y="57" width="25" height="16" rx="4" fill="#fff2d8" stroke="#d97706"/>
+  <text x="1548" y="70" class="tiny">Loss / supervision</text>
+  <rect x="1512" y="88" width="25" height="16" rx="4" fill="#e9e3f6" stroke="#665191"/>
+  <text x="1548" y="101" class="tiny">Post-training use</text>
+
+  <!-- 1 Inputs -->
+  <text x="60" y="165" class="section">1. Input sample: what does one row mean?</text>
+  <rect x="60" y="190" width="1680" height="190" rx="24" class="box" fill="#fffdf6" stroke="#d8d2c3"/>
+  <rect x="95" y="230" width="330" height="110" rx="18" fill="#eef2f7" stroke="#94a3b8" stroke-width="2"/>
+  <text x="120" y="260" class="label">H&amp;E crop</text>
+  <text x="120" y="292" class="small">A square image patch centered on a</text>
+  <text x="120" y="315" class="small">VisiumHD spatial coordinate / spot.</text>
+  <text x="120" y="338" class="tiny">Tested crop64 and crop128; main line = crop128.</text>
+
+  <rect x="470" y="230" width="330" height="110" rx="18" fill="#eef2f7" stroke="#94a3b8" stroke-width="2"/>
+  <text x="495" y="260" class="label">Gene expression vector</text>
+  <text x="495" y="292" class="small">18,085-gene log-normalized</text>
+  <text x="495" y="315" class="small">VisiumHD expression profile.</text>
+  <text x="495" y="338" class="tiny">Same spatial location as the H&amp;E crop.</text>
+
+  <rect x="845" y="230" width="415" height="110" rx="18" fill="#fff2d8" stroke="#d97706" stroke-width="2"/>
+  <text x="870" y="260" class="label">Tissue label used for CE supervision</text>
+  <text x="870" y="292" class="small">3-class: tumor / stroma / immune infiltration</text>
+  <text x="870" y="315" class="small">8-class: fine expert tissue labels</text>
+  <text x="870" y="338" class="tiny">Label supervises the embedding; it is not the SAM3 mask output.</text>
+
+  <rect x="1305" y="230" width="360" height="110" rx="18" fill="#f8e1e4" stroke="#aa3a45" stroke-width="2"/>
+  <text x="1330" y="260" class="label">Paired sample</text>
+  <text x="1330" y="292" class="small">(H&amp;E crop, expression vector, label)</text>
+  <text x="1330" y="320" class="tiny">The two modalities are co-localized.</text>
+
+  <path d="M425 285 L470 285" class="line"/>
+  <path d="M800 285 L845 285" class="line"/>
+  <path d="M1260 285 L1305 285" class="line"/>
+
+  <!-- 2 Framework -->
+  <text x="60" y="430" class="section">2. Training framework: two towers + total loss</text>
+  <rect x="60" y="455" width="1680" height="360" rx="24" class="box" fill="#fffdf6" stroke="#d8d2c3"/>
+
+  <rect x="95" y="520" width="210" height="80" rx="16" fill="#eef2f7" stroke="#94a3b8" stroke-width="2"/>
+  <text x="125" y="552" class="label">H&amp;E crop</text>
+  <text x="125" y="580" class="tiny">image input</text>
+  <rect x="360" y="500" width="250" height="120" rx="18" fill="#ddeff5" stroke="#2f6f9f" stroke-width="2"/>
+  <text x="390" y="535" class="label">Image encoder</text>
+  <text x="390" y="565" class="small">ResNet50 or GigaPath</text>
+  <text x="390" y="593" class="tiny">frozen / last-1 / last-2</text>
+  <rect x="665" y="500" width="225" height="120" rx="18" fill="#e3f3ea" stroke="#2f7d62" stroke-width="2"/>
+  <text x="695" y="535" class="label">Image projection</text>
+  <text x="695" y="565" class="small">trainable head</text>
+  <text x="695" y="593" class="tiny">embed128 or embed512</text>
+
+  <rect x="95" y="665" width="210" height="80" rx="16" fill="#eef2f7" stroke="#94a3b8" stroke-width="2"/>
+  <text x="125" y="697" class="label">Expression vector</text>
+  <text x="125" y="725" class="tiny">18,085 genes</text>
+  <rect x="360" y="645" width="250" height="120" rx="18" fill="#e3f3ea" stroke="#2f7d62" stroke-width="2"/>
+  <text x="390" y="680" class="label">Expression MLP</text>
+  <text x="390" y="710" class="small">trainable branch</text>
+  <rect x="665" y="645" width="225" height="120" rx="18" fill="#e3f3ea" stroke="#2f7d62" stroke-width="2"/>
+  <text x="695" y="680" class="label">Expression projection</text>
+  <text x="695" y="710" class="small">trainable head</text>
+  <text x="695" y="738" class="tiny">embed128 or embed512</text>
+
+  <rect x="970" y="575" width="250" height="120" rx="22" fill="#203b63" stroke="#13213a" stroke-width="2"/>
+  <text x="1000" y="620" class="whiteLabel">Shared embedding space</text>
+  <text x="1000" y="653" class="whiteTiny">image and expression embeddings</text>
+  <text x="1000" y="675" class="whiteTiny">are compared here</text>
+
+  <rect x="1325" y="500" width="335" height="120" rx="18" fill="#fff2d8" stroke="#d97706" stroke-width="2"/>
+  <text x="1350" y="533" class="label">Classification loss</text>
+  <text x="1350" y="563" class="small">L_cls = CE_img + CE_expr</text>
+  <text x="1350" y="592" class="tiny">3-class or 8-class tissue label</text>
+
+  <rect x="1325" y="655" width="335" height="120" rx="18" fill="#fff2d8" stroke="#d97706" stroke-width="2"/>
+  <text x="1350" y="688" class="label">Alignment loss</text>
+  <text x="1350" y="718" class="small">L_align = MSE or symmetric InfoNCE</text>
+  <text x="1350" y="747" class="tiny">positive pair + batch negatives</text>
+
+  <rect x="1010" y="720" width="245" height="70" rx="16" fill="#13213a" stroke="#13213a"/>
+  <text x="1032" y="748" class="whiteLabel">Total loss</text>
+  <text x="1032" y="775" class="whiteTiny">L_total = L_cls + lambda * L_align</text>
+
+  <path d="M305 560 L360 560" class="line"/>
+  <path d="M610 560 L665 560" class="line"/>
+  <path d="M890 560 C925 560 940 603 970 620" class="line"/>
+  <path d="M305 705 L360 705" class="line"/>
+  <path d="M610 705 L665 705" class="line"/>
+  <path d="M890 705 C925 705 940 665 970 650" class="line"/>
+  <path d="M1220 615 L1325 555" class="orangeLine"/>
+  <path d="M1220 650 L1325 715" class="orangeLine"/>
+  <path d="M1492 620 C1450 800 1290 800 1255 755" class="orangeLine"/>
+
+  <!-- 3 Branches mapped to locations -->
+  <text x="60" y="870" class="section">3. Experiment branches: each change maps to a specific part of the framework</text>
+  <rect x="60" y="895" width="1070" height="220" rx="24" class="box" fill="#ffffff" stroke="#d8d2c3"/>
+  <rect x="95" y="930" width="230" height="65" rx="14" fill="#ddeff5" stroke="#2f6f9f" stroke-width="2"/>
+  <text x="115" y="957" class="label">Backbone baseline</text>
+  <text x="115" y="980" class="tiny">changes Image encoder: ResNet50 vs GigaPath</text>
+  <rect x="95" y="1025" width="230" height="65" rx="14" fill="#ddeff5" stroke="#2f6f9f" stroke-width="2"/>
+  <text x="115" y="1052" class="label">Crop / labels</text>
+  <text x="115" y="1075" class="tiny">changes input crop and label target</text>
+
+  <rect x="405" y="930" width="230" height="65" rx="14" fill="#ddeff5" stroke="#2f6f9f" stroke-width="2"/>
+  <text x="425" y="957" class="label">Embedding size</text>
+  <text x="425" y="980" class="tiny">changes projection output: 128 vs 512</text>
+  <rect x="405" y="1025" width="230" height="65" rx="14" fill="#fff2d8" stroke="#d97706" stroke-width="2"/>
+  <text x="425" y="1052" class="label">Loss ablation</text>
+  <text x="425" y="1075" class="tiny">changes CE-only / MSE / InfoNCE</text>
+
+  <rect x="715" y="930" width="250" height="65" rx="14" fill="#e3f3ea" stroke="#2f7d62" stroke-width="2"/>
+  <text x="735" y="957" class="label">Fine-tuning strategy</text>
+  <text x="735" y="980" class="tiny">changes trainable image blocks: 0 / 1 / 2</text>
+  <rect x="715" y="1025" width="250" height="65" rx="14" fill="#e9e3f6" stroke="#665191" stroke-width="2"/>
+  <text x="735" y="1052" class="label">Retrieval / fusion eval</text>
+  <text x="735" y="1075" class="tiny">post-training test of shared embedding</text>
+
+  <!-- 4 SAM integration -->
+  <text x="1190" y="870" class="section">4. Where retrieval plugs into SAM3</text>
+  <rect x="1190" y="895" width="550" height="220" rx="24" class="box" fill="#fffdf6" stroke="#d8d2c3"/>
+  <rect x="1225" y="935" width="185" height="70" rx="14" fill="#e9e3f6" stroke="#665191" stroke-width="2"/>
+  <text x="1245" y="962" class="label">Expression query</text>
+  <text x="1245" y="985" class="tiny">find similar H&amp;E patches</text>
+  <rect x="1470" y="935" width="215" height="70" rx="14" fill="#e9e3f6" stroke="#665191" stroke-width="2"/>
+  <text x="1490" y="962" class="label">Reference / exemplar DB</text>
+  <text x="1490" y="985" class="tiny">retrieved patches + labels</text>
+  <rect x="1225" y="1030" width="185" height="60" rx="14" fill="#ddeff5" stroke="#2f6f9f" stroke-width="2"/>
+  <text x="1245" y="1056" class="label">SAM3 proposals</text>
+  <text x="1245" y="1078" class="tiny">candidate masks/prompts</text>
+  <rect x="1470" y="1030" width="215" height="60" rx="14" fill="#e3f3ea" stroke="#2f7d62" stroke-width="2"/>
+  <text x="1490" y="1056" class="label">Mask / prompt ranking</text>
+  <text x="1490" y="1078" class="tiny">use shared-space similarity</text>
+  <path d="M1410 970 L1470 970" class="blueLine"/>
+  <path d="M1410 1060 L1470 1060" class="greenLine"/>
+  <path d="M1578 1005 L1578 1030" class="line"/>
+
+  <rect x="60" y="1138" width="1680" height="30" rx="10" fill="#13213a"/>
+  <text x="90" y="1160" class="whiteLabel">Key message: the model learns a shared H&amp;E-expression space; retrieval uses that space to find exemplars or rank SAM3 masks/prompts after training.</text>
+</svg>

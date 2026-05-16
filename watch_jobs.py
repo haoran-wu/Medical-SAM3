@@ -12,10 +12,12 @@ import argparse
 import subprocess
 import time
 from datetime import datetime
+from pathlib import Path
 
 HOST = "bouchet"
 LOG_DIR = "/home/hw646/Medical-SAM3/output/visium_hd_exp1"
 LOG_TAIL_LINES = 6
+SSH_READY = False
 
 RESET  = "\033[0m"
 BOLD   = "\033[1m"
@@ -27,6 +29,12 @@ GRAY   = "\033[90m"
 
 
 def ssh(cmd: str) -> str:
+    global SSH_READY
+    if not SSH_READY:
+        check_script = Path(__file__).resolve().parent / "scripts" / "hpc_ssh_check.sh"
+        if check_script.exists():
+            subprocess.run(["bash", str(check_script)], check=True)
+        SSH_READY = True
     result = subprocess.run(
         ["ssh", "-o", "ConnectTimeout=10", HOST, cmd],
         capture_output=True, text=True,

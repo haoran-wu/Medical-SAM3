@@ -24,6 +24,7 @@ LOG_DIR     = "/home/hw646/Medical-SAM3/output/visium_hd_exp1"
 LOG_FILE    = Path.home() / ".hpc_notify.log"
 PID_FILE    = Path.home() / ".hpc_notify.pid"
 THIS_FILE   = Path(__file__).resolve()
+SSH_READY   = False
 
 RESET  = "\033[0m";  BOLD   = "\033[1m"
 GREEN  = "\033[92m"; YELLOW = "\033[93m"
@@ -33,7 +34,18 @@ GRAY   = "\033[90m"; BLUE   = "\033[94m"
 
 # ─── SSH helpers ──────────────────────────────────────────────────────────────
 
+def ensure_ssh_ready() -> None:
+    global SSH_READY
+    if SSH_READY:
+        return
+    check_script = THIS_FILE.parent / "scripts" / "hpc_ssh_check.sh"
+    if check_script.exists():
+        subprocess.run(["bash", str(check_script)], check=True)
+    SSH_READY = True
+
+
 def ssh(cmd: str, timeout: int = 10) -> str:
+    ensure_ssh_ready()
     r = subprocess.run(
         ["ssh", "-o", f"ConnectTimeout={timeout}", "-o", "BatchMode=yes", HOST, cmd],
         capture_output=True, text=True,

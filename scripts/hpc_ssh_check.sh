@@ -1,45 +1,68 @@
 #!/bin/bash
 # hpc_ssh_check.sh
-# 检查 bouchet ControlMaster 是否存活。
-# 如果死了：弹出通知 + 自动打开 Terminal 让用户做一次 DUO，然后等待连接建立。
-# 用法: source scripts/hpc_ssh_check.sh   (或直接被 Claude 在 Bash 工具里调用)
+# Ensure the Bouchet SSH ControlMaster is alive.
+# If it is dead, open Terminal for one interactive Duo login, then wait until
+# the persistent master socket is ready for non-interactive Codex commands.
 
-HOST="bouchet"
-MAX_WAIT=120   # 最多等 120 秒让用户完成 DUO
-POLL=2
+set -euo pipefail
+
+HOST="${HPC_HOST:-bouchet}"
+MAX_WAIT="${HPC_SSH_MAX_WAIT:-180}"
+POLL="${HPC_SSH_POLL:-2}"
+
+CONTROL_DIR="$HOME/.ssh/controlmasters"
+mkdir -p "$CONTROL_DIR"
+chmod 700 "$CONTROL_DIR"
+
+control_path="$(ssh -G "$HOST" 2>/dev/null | awk '/^controlpath / {print $2; exit}')"
+if [[ -z "${control_path:-}" ]]; then
+    echo "ERROR: cannot resolve ssh ControlPath for $HOST" >&2
+    exit 1
+fi
 
 check_alive() {
-    ssh -O check "$HOST" 2>/dev/null
+    ssh -O check "$HOST" >/dev/null 2>&1
 }
 
 if check_alive; then
+    echo "ControlMaster already alive: $HOST"
     exit 0
 fi
 
-# ControlMaster 不存在或已过期
-echo "ControlMaster 已断开，正在请求重新认证..."
+echo "ControlMaster is down for $HOST."
+echo "Opening Terminal for Duo login. Leave it open until it prints CONNECTED."
 
-# macOS 通知
-osascript -e 'display notification "请在弹出的终端里完成 DUO 认证" with title "HPC 需要重新连接" subtitle "ssh bouchet" sound name "Ping"' 2>/dev/null
+osascript -e 'display notification "请在弹出的 Terminal 里完成 Duo 认证" with title "HPC SSH 需要重新连接" subtitle "ssh bouchet" sound name "Ping"' 2>/dev/null || true
 
-# 自动打开 Terminal 并运行 ssh bouchet
-osascript <<'EOF'
-tell application "Terminal"
-    activate
-    do script "echo '👋 请完成 DUO 认证后关闭此窗口' && ssh bouchet"
-end tell
+terminal_cmd=$(
+    cat <<EOF
+echo 'HPC SSH reconnect for $HOST'
+echo 'Please complete Duo/password if prompted.'
+echo 'This window can be closed after it prints CONNECTED.'
+ssh -M -S '$control_path' -o ControlMaster=yes -o ControlPersist=7d -o ServerAliveInterval=60 -o ServerAliveCountMax=10 '$HOST' 'echo CONNECTED: \$(hostname); sleep 5'
+echo 'CONNECTED. ControlMaster should persist for 7 days.'
+EOF
+)
+
+osascript - "$terminal_cmd" <<'EOF'
+on run argv
+    tell application "Terminal"
+        activate
+        do script (item 1 of argv)
+    end tell
+end run
 EOF
 
-# 等待 ControlMaster 建立
 elapsed=0
 while ! check_alive; do
-    sleep $POLL
+    sleep "$POLL"
     elapsed=$((elapsed + POLL))
-    if [ $elapsed -ge $MAX_WAIT ]; then
-        echo "ERROR: 等待 DUO 认证超时（${MAX_WAIT}s）"
+    if [[ "$elapsed" -ge "$MAX_WAIT" ]]; then
+        echo "ERROR: timed out waiting for Duo/ControlMaster (${MAX_WAIT}s)" >&2
+        echo "Expected socket: $control_path" >&2
         exit 1
     fi
 done
 
-echo "ControlMaster 已建立，继续执行。"
+echo "ControlMaster established: $HOST"
 exit 0

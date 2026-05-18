@@ -1,0 +1,16 @@
+{
+  "created_at": "2026-05-17T16:21:51.591073",
+  "official_status": "PASS_OFFICIAL",
+  "official_summary": "output/visium_hd_exp1/ficture_official_filtered_he_aligned/summary_official.json",
+  "official_input_dir": "output/visium_hd_exp1/ficture_official_filtered_candidate_pool_input_roi",
+  "roi_size_wh": [
+    3144,
+    3327
+  ],
+  "factor_shape_hw": [
+    3327,
+    3144
+  ],
+  "ranking_vlm_best_files": 17,
+  "ranking_vlm_rows": 96
+}

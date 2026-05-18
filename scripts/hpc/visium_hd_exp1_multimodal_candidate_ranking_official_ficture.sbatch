@@ -28,6 +28,7 @@ MASK_CACHE_SIZE=${MASK_CACHE_SIZE:-24}
 MIN_FICTURE_REPORTS=${MIN_FICTURE_REPORTS:-48}
 MIN_UNIQUE_SETTINGS=${MIN_UNIQUE_SETTINGS:-48}
 FACTOR_ANNOTATION=${FACTOR_ANNOTATION:-$PROJECT/output/visium_hd_exp1/molecular_prior_experiments/dx-60_dy80/factor_annotation.csv}
+FACTOR_SEMANTIC_LEGEND=${FACTOR_SEMANTIC_LEGEND:-$PROJECT/output/visium_hd_exp1/ficture_official_filtered_he_aligned/factor_semantic_legend.json}
 CLIP_MODEL=${CLIP_MODEL:-}
 CLIP_BATCH_SIZE=${CLIP_BATCH_SIZE:-32}
 
@@ -53,7 +54,8 @@ fic = input_dir / "ficture_official_filtered_roi_rgb.png"
 factor = input_dir / "ficture_official_filtered_roi_factor_index.npy"
 summary = input_dir / "region_summary_official_filtered_roi_hpc.json"
 candidate_root = Path("$FICTURE_ROOT")
-for path in [official_summary, he, fic, factor, summary, candidate_root]:
+semantic_legend = Path("$FACTOR_SEMANTIC_LEGEND")
+for path in [official_summary, he, fic, factor, summary, candidate_root, semantic_legend]:
     if not path.exists():
         raise SystemExit(f"Missing official FICTURE prerequisite: {path}")
 status = json.loads(official_summary.read_text()).get("status")
@@ -113,12 +115,15 @@ echo "CANDIDATE_MODE=$CANDIDATE_MODE CAND_LIMIT=$CAND_LIMIT TOP_KS=$TOP_KS_LIST 
 echo "Official input: $INPUT_DIR"
 echo "FICTURE_ROOT=$FICTURE_ROOT"
 echo "CLIP_MODEL=${CLIP_MODEL:-none}"
+echo "FACTOR_SEMANTIC_LEGEND=$FACTOR_SEMANTIC_LEGEND"
 "$PY" inference/visium_hd_exp1/rank_multimodal_sam_candidates.py \
   "${candidate_args[@]}" \
   --he-image "$INPUT_DIR/he_roi_matching_official_ficture_coverage.png" \
+  --ficture-image "$INPUT_DIR/ficture_official_filtered_roi_rgb.png" \
   --factor-label-npy "$INPUT_DIR/ficture_official_filtered_roi_factor_index.npy" \
   --summary-path "$INPUT_DIR/region_summary_official_filtered_roi_hpc.json" \
   --factor-annotation "$FACTOR_ANNOTATION" \
+  --factor-semantic-legend "$FACTOR_SEMANTIC_LEGEND" \
   --output-dir "$OUT" \
   --top-ks "${top_ks[@]}" \
   --max-overlap "$MAX_OVERLAP" \

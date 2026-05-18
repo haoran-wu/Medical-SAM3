@@ -24,6 +24,13 @@ from typing import Dict, List, Sequence, Tuple
 import numpy as np
 from PIL import Image, ImageDraw
 
+from ficture_factor_semantics import (
+    factor_histogram_summary,
+    label_factor_hints,
+    legend_text,
+    load_semantic_legend,
+)
+
 
 LABEL_ORDER = [
     ("lung_bronchiola", "bronchiola"),
@@ -55,6 +62,7 @@ class Candidate:
     mask_path: Path
     base_score: float
     molecular_score: float
+    factor_semantic_score: float
     he_score: float
     shape_score: float
     area_frac: float
@@ -234,6 +242,7 @@ def load_candidates(score_csvs: Sequence[Path], labels: Sequence[str], per_label
                     mask_path=Path(row["mask_path"]),
                     base_score=score,
                     molecular_score=float(row.get("molecular_score") or 0.0),
+                    factor_semantic_score=float(row.get("factor_semantic_score") or 0.0),
                     he_score=float(row.get("he_score") or 0.0),
                     shape_score=float(row.get("shape_score") or 0.0),
                     area_frac=float(row.get("area_frac") or 0.0),
@@ -246,7 +255,7 @@ def load_candidates(score_csvs: Sequence[Path], labels: Sequence[str], per_label
     return selected
 
 
-def build_messages(label: str, candidate: Candidate) -> Tuple[str, str]:
+def build_messages(label: str, candidate: Candidate, factor_context: str = "") -> Tuple[str, str]:
     desc = LABEL_DESCRIPTIONS[label]
     system = (
         "You are a careful pathology image judge. You do not draw masks. "
@@ -266,8 +275,12 @@ Candidate metadata:
 - prompt setting: {candidate.setting}
 - approximate area fraction: {candidate.area_frac:.4f}
 - non-VLM molecular score: {candidate.molecular_score:.3f}
+- non-VLM factor semantic score: {candidate.factor_semantic_score:.3f}
 - non-VLM H&E heuristic score: {candidate.he_score:.3f}
 - non-VLM shape score: {candidate.shape_score:.3f}
+
+FICTURE interpretation context:
+{factor_context}
 
 Score this candidate for the target class. Prefer masks that cover the real target tissue while avoiding unrelated tissue.
 Return JSON only:
@@ -359,6 +372,7 @@ def main() -> None:
     parser.add_argument("--ficture-image", type=Path, required=True)
     parser.add_argument("--factor-label-npy", type=Path, required=True)
     parser.add_argument("--factor-annotation", type=Path, required=True)
+    parser.add_argument("--factor-semantic-legend", type=Path, default=None)
     parser.add_argument("--summary-path", type=Path, required=True)
     parser.add_argument("--output-dir", type=Path, required=True)
     parser.add_argument("--model", required=True)
@@ -382,6 +396,8 @@ def main() -> None:
     ficture = resize_rgb(np.array(Image.open(args.ficture_image).convert("RGB")), target_shape)
     n_factors = int(factor_labels[factor_labels >= 0].max()) + 1 if np.any(factor_labels >= 0) else 1
     gene_scores = load_gene_factor_scores(args.factor_annotation, n_factors)
+    semantic_factors = load_semantic_legend(args.factor_semantic_legend, n_factors=n_factors)
+    full_legend_text = legend_text(semantic_factors) if semantic_factors else "No factor semantic legend was provided."
     priors = {
         slug: render_prior_rgb(prior_map_for_label(factor_labels, gene_scores.get(slug, np.zeros(n_factors))))
         for slug, _display in LABEL_ORDER
@@ -406,10 +422,28 @@ def main() -> None:
     for i, cand in enumerate(candidates, start=1):
         mask = get_mask(cand.mask_path)
         images = crop_triplet(he, ficture, priors[cand.label], mask, cand.label)
-        system, prompt = build_messages(cand.label, cand)
+        vals = factor_labels[mask & (factor_labels >= 0)]
+        if vals.size:
+            hist = np.bincount(vals.astype(np.int64), minlength=n_factors).astype(np.float64)
+            hist = hist / max(hist.sum(), 1.0)
+            composition = factor_histogram_summary(hist, semantic_factors, label=cand.label, top_n=5)
+        else:
+            composition = "candidate mask contains no valid FICTURE factor pixels"
+        factor_context = (
+            f"Target-supporting factors: {label_factor_hints(semantic_factors, cand.label, top_n=4) or 'none'}\n"
+            f"Candidate mask factor composition: {composition}\n"
+            f"Full color legend:\n{full_legend_text}"
+        )
+        system, prompt = build_messages(cand.label, cand, factor_context)
         raw = vlm_generate(processor, model, args.device, images, system, prompt, args.max_new_tokens)
         parsed = parse_json_score(raw)
-        fused = 0.55 * float(parsed["score"]) + 0.20 * cand.molecular_score + 0.15 * cand.shape_score + 0.10 * cand.he_score
+        fused = (
+            0.50 * float(parsed["score"])
+            + 0.18 * cand.molecular_score
+            + 0.14 * cand.factor_semantic_score
+            + 0.10 * cand.shape_score
+            + 0.08 * cand.he_score
+        )
         row = {
             "label": cand.label,
             "source": cand.source,
@@ -418,6 +452,7 @@ def main() -> None:
             "candidate_id": cand.candidate_id,
             "mask_path": str(cand.mask_path),
             "base_score": cand.base_score,
+            "factor_semantic_score": cand.factor_semantic_score,
             "vlm_score": parsed["score"],
             "vlm_recall": parsed["recall"],
             "vlm_precision": parsed["precision"],

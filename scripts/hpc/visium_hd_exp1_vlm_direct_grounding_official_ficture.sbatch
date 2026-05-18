@@ -18,6 +18,7 @@ OUTBASE=$PROJECT/output/visium_hd_exp1/vlm_direct_grounding
 
 RUN_NAME=${RUN_NAME:-official_qwen25vl7b_ground_ficture}
 MODEL_NAME=${MODEL_NAME:-Qwen/Qwen2.5-VL-7B-Instruct}
+FACTOR_SEMANTIC_LEGEND=${FACTOR_SEMANTIC_LEGEND:-$PROJECT/output/visium_hd_exp1/ficture_official_filtered_he_aligned/factor_semantic_legend.json}
 PER_LABEL=${PER_LABEL:-80}
 TOP_KS_LIST=${TOP_KS_LIST:-"1:2:3:5:8:12:20"}
 MAX_OVERLAP=${MAX_OVERLAP:-0.88}
@@ -48,6 +49,7 @@ required = [
     input_dir / "ficture_official_filtered_roi_factor_index.npy",
     input_dir / "region_summary_official_filtered_roi_hpc.json",
     official_summary,
+    Path("$FACTOR_SEMANTIC_LEGEND"),
 ]
 for path in required:
     if not path.exists():
@@ -76,6 +78,7 @@ IFS=':' read -r -a top_ks <<< "$TOP_KS_LIST"
 date
 echo "RUN_NAME=$RUN_NAME"
 echo "MODEL_NAME=$MODEL_NAME"
+echo "FACTOR_SEMANTIC_LEGEND=$FACTOR_SEMANTIC_LEGEND"
 echo "PER_LABEL=$PER_LABEL TOP_KS=$TOP_KS_LIST MAX_OVERLAP=$MAX_OVERLAP"
 printf 'Official score args: %s\n' "${score_args[@]}"
 nvidia-smi || true
@@ -85,6 +88,7 @@ nvidia-smi || true
   --ficture-image "$INPUT_DIR/ficture_official_filtered_roi_rgb.png" \
   --factor-label-npy "$INPUT_DIR/ficture_official_filtered_roi_factor_index.npy" \
   --factor-annotation "$PROJECT/output/visium_hd_exp1/molecular_prior_experiments/dx-60_dy80/factor_annotation.csv" \
+  --factor-semantic-legend "$FACTOR_SEMANTIC_LEGEND" \
   --summary-path "$INPUT_DIR/region_summary_official_filtered_roi_hpc.json" \
   --output-dir "$OUT" \
   --model "$MODEL_NAME" \

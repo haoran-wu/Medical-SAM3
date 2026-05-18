@@ -31,6 +31,14 @@ from typing import Dict, Iterable, List, Sequence, Tuple
 import numpy as np
 from PIL import Image, ImageDraw
 
+from ficture_factor_semantics import (
+    factor_histogram_summary,
+    factor_score_vectors,
+    label_factor_hints,
+    load_semantic_legend,
+    semantic_clip_prompts,
+)
+
 
 LABEL_ORDER = [
     ("lung_bronchiola", "bronchiola"),
@@ -76,6 +84,10 @@ RANKERS = [
     "vessel_elongated_prior",
     "bav_focus_recall",
     "bav_focus_balanced",
+    "factor_semantic",
+    "factor_semantic_molecular",
+    "factor_semantic_clip",
+    "semantic_precision",
 ]
 
 CLIP_TEXT_PROMPTS: Dict[str, List[str]] = {
@@ -461,10 +473,11 @@ def candidate_clip_crop(image: np.ndarray, mask: np.ndarray, pad: int = 24) -> I
 def compute_clip_scores(
     candidates: Sequence[Candidate],
     get_mask,
-    he: np.ndarray,
+    image: np.ndarray,
     model_name: str,
     batch_size: int,
     device: str,
+    text_prompts_by_label: Dict[str, List[str]],
 ) -> Dict[Path, Dict[str, float]]:
     import torch
     from transformers import CLIPModel, CLIPProcessor
@@ -488,7 +501,7 @@ def compute_clip_scores(
     label_slices: Dict[str, Tuple[int, int]] = {}
     for slug, _display in LABEL_ORDER:
         start = len(label_prompts)
-        label_prompts.extend(CLIP_TEXT_PROMPTS[slug])
+        label_prompts.extend(text_prompts_by_label.get(slug, CLIP_TEXT_PROMPTS[slug]))
         label_slices[slug] = (start, len(label_prompts))
 
     with torch.no_grad():
@@ -506,7 +519,7 @@ def compute_clip_scores(
     out: Dict[Path, Dict[str, float]] = {}
     for i in range(0, len(candidates), batch_size):
         batch = candidates[i : i + batch_size]
-        images = [candidate_clip_crop(he, get_mask(cand.mask_path)) for cand in batch]
+        images = [candidate_clip_crop(image, get_mask(cand.mask_path)) for cand in batch]
         with torch.no_grad():
             image_inputs = processor(images=images, return_tensors="pt").to(device)
             image_features = pooled_features(model.get_image_features(**image_inputs))
@@ -551,9 +564,11 @@ def main() -> None:
     parser = argparse.ArgumentParser()
     parser.add_argument("--candidate-root", action="append", required=True, help="source=/path/to/root; repeatable")
     parser.add_argument("--he-image", type=Path, required=True)
+    parser.add_argument("--ficture-image", type=Path, default=None, help="optional FICTURE RGB image for semantic CLIP scoring")
     parser.add_argument("--factor-label-npy", type=Path, required=True)
     parser.add_argument("--summary-path", type=Path, required=True)
     parser.add_argument("--factor-annotation", type=Path, default=None)
+    parser.add_argument("--factor-semantic-legend", type=Path, default=None)
     parser.add_argument("--output-dir", type=Path, required=True)
     parser.add_argument("--top-ks", type=int, nargs="+", default=[1, 2, 3, 5, 8, 12])
     parser.add_argument("--max-overlap", type=float, default=0.72)
@@ -575,9 +590,15 @@ def main() -> None:
     factor_labels = np.load(args.factor_label_npy).astype(np.int16)
     target_shape = factor_labels.shape
     he = resize_rgb(np.array(Image.open(args.he_image).convert("RGB")), target_shape)
+    ficture = None
+    if args.ficture_image is not None and args.ficture_image.exists():
+        ficture = resize_rgb(np.array(Image.open(args.ficture_image).convert("RGB")), target_shape)
     grad = gradient_image(he)
     n_factors = int(factor_labels[factor_labels >= 0].max()) + 1 if np.any(factor_labels >= 0) else 1
     gene_scores = load_gene_factor_scores(args.factor_annotation, n_factors)
+    semantic_factors = load_semantic_legend(args.factor_semantic_legend, n_factors=n_factors)
+    semantic_scores = factor_score_vectors(semantic_factors, [slug for slug, _display in LABEL_ORDER], n_factors)
+    clip_text_prompts = semantic_clip_prompts(CLIP_TEXT_PROMPTS, semantic_factors) if semantic_factors else CLIP_TEXT_PROMPTS
     gt_masks = load_summary_masks(args.summary_path, target_shape)
     prior_maps: Dict[str, np.ndarray] = {}
     prior_top_masks: Dict[str, np.ndarray] = {}
@@ -628,6 +649,7 @@ def main() -> None:
     feature_rows: List[dict] = []
     score_rows: List[dict] = []
     clip_scores_by_path: Dict[Path, Dict[str, float]] = {}
+    ficture_clip_scores_by_path: Dict[Path, Dict[str, float]] = {}
 
     # Lightweight cross-source consensus: does another modality propose a similar region?
     by_source: Dict[str, List[Candidate]] = {}
@@ -651,11 +673,22 @@ def main() -> None:
         clip_scores_by_path = compute_clip_scores(
             candidates=candidates,
             get_mask=get_mask,
-            he=he,
+            image=he,
             model_name=args.clip_model,
             batch_size=args.clip_batch_size,
             device=args.clip_device,
+            text_prompts_by_label=CLIP_TEXT_PROMPTS,
         )
+        if ficture is not None and semantic_factors:
+            ficture_clip_scores_by_path = compute_clip_scores(
+                candidates=candidates,
+                get_mask=get_mask,
+                image=ficture,
+                model_name=args.clip_model,
+                batch_size=args.clip_batch_size,
+                device=args.clip_device,
+                text_prompts_by_label=clip_text_prompts,
+            )
 
     for cand in candidates:
         mask = get_mask(cand.mask_path)
@@ -694,6 +727,7 @@ def main() -> None:
             "red_frac": red_frac,
             "bright_frac": bright_frac,
             "cross_source_iou": consensus_by_path[cand.mask_path],
+            "dominant_ficture_factors": factor_histogram_summary(hist, semantic_factors, top_n=5),
         }
         feature_rows.append(row_base)
         for slug, _display in LABEL_ORDER:
@@ -705,6 +739,7 @@ def main() -> None:
                 prior_bg_means[slug],
             )
             molecular = 0.45 * molecular_mean + 0.25 * prior_contrast + 0.20 * prior_high_frac + 0.10 * prior_weak_iou
+            factor_semantic = float(np.dot(hist, semantic_scores.get(slug, np.zeros(n_factors, dtype=np.float64))))
             he_score = he_class_score(slug, rgb_mean, rgb_std, dark_frac, red_frac, bright_frac)
             shape_score = shape_class_score(slug, area_frac, fill, elongation, boundary_grad)
             area_score = area_gate_score(slug, area_frac)
@@ -712,8 +747,10 @@ def main() -> None:
             source_score = source_prior_score(slug, cand.source)
             consensus = consensus_by_path[cand.mask_path]
             clip_score = clip_scores_by_path.get(cand.mask_path, {}).get(slug, 0.0)
+            ficture_clip_score = ficture_clip_scores_by_path.get(cand.mask_path, {}).get(slug, 0.0)
             scores = {
                 "molecular_only": molecular,
+                "factor_semantic": factor_semantic,
                 "he_heuristic": he_score,
                 "shape_only": shape_score,
                 "source_prior": source_score,
@@ -725,31 +762,36 @@ def main() -> None:
                 "salip_clip": clip_score,
                 "salip_clip_molecular": 0.55 * clip_score + 0.35 * molecular + 0.10 * shape_score,
                 "salip_clip_he": 0.55 * clip_score + 0.25 * he_score + 0.20 * shape_score,
+                "factor_semantic_molecular": 0.55 * factor_semantic + 0.35 * molecular + 0.10 * shape_score,
+                "factor_semantic_clip": 0.40 * ficture_clip_score + 0.25 * factor_semantic + 0.25 * molecular + 0.10 * shape_score,
+                "semantic_precision": (size_penalty ** 1.10) * (
+                    0.34 * factor_semantic + 0.26 * molecular + 0.18 * he_score + 0.14 * shape_score + 0.08 * area_score
+                ),
                 "precision_gated": size_penalty * (0.35 * molecular + 0.25 * he_score + 0.25 * shape_score + 0.15 * area_score),
                 "alveoli_size_gated": size_penalty * (
                     0.45 * he_score + 0.25 * area_score + 0.15 * shape_score + 0.10 * molecular + 0.05 * source_score
                 ),
                 "alveoli_precision_prior": (size_penalty ** 1.25) * (
-                    0.34 * he_score + 0.24 * shape_score + 0.18 * prior_high_frac + 0.14 * area_score + 0.10 * molecular
+                    0.28 * he_score + 0.22 * shape_score + 0.18 * prior_high_frac + 0.14 * area_score + 0.10 * molecular + 0.08 * factor_semantic
                 ),
                 "alveoli_clip_precision": (size_penalty ** 1.10) * (
-                    0.38 * clip_score + 0.24 * he_score + 0.16 * shape_score + 0.12 * area_score + 0.10 * molecular
+                    0.28 * clip_score + 0.18 * ficture_clip_score + 0.18 * he_score + 0.14 * shape_score + 0.10 * area_score + 0.07 * molecular + 0.05 * factor_semantic
                 ),
                 "alveoli_conservative": (size_penalty ** 1.60) * (
-                    0.32 * he_score + 0.26 * area_score + 0.22 * shape_score + 0.12 * prior_high_frac + 0.08 * source_score
+                    0.28 * he_score + 0.24 * area_score + 0.20 * shape_score + 0.12 * prior_high_frac + 0.08 * factor_semantic + 0.08 * source_score
                 ),
                 "vessel_elongated_prior": size_penalty * (
-                    0.35 * molecular + 0.30 * shape_score + 0.20 * area_score + 0.10 * he_score + 0.05 * source_score
+                    0.28 * molecular + 0.24 * factor_semantic + 0.24 * shape_score + 0.14 * area_score + 0.07 * he_score + 0.03 * source_score
                 ),
             }
             if slug == "lung_bronchiola":
-                bav_recall = 0.48 * molecular + 0.20 * shape_score + 0.14 * area_score + 0.10 * source_score + 0.08 * consensus
+                bav_recall = 0.34 * molecular + 0.28 * factor_semantic + 0.16 * shape_score + 0.10 * area_score + 0.07 * source_score + 0.05 * consensus
                 bav_balanced = (size_penalty ** 0.35) * bav_recall
             elif slug == "lung_alveoli_normal_adjacent":
-                bav_recall = 0.36 * he_score + 0.24 * area_score + 0.18 * shape_score + 0.12 * molecular + 0.10 * source_score
+                bav_recall = 0.28 * he_score + 0.22 * factor_semantic + 0.18 * area_score + 0.14 * shape_score + 0.10 * molecular + 0.08 * source_score
                 bav_balanced = (size_penalty ** 0.65) * bav_recall
             elif slug == "lung_vessels":
-                bav_recall = 0.42 * molecular + 0.30 * shape_score + 0.16 * area_score + 0.07 * he_score + 0.05 * consensus
+                bav_recall = 0.30 * molecular + 0.28 * factor_semantic + 0.24 * shape_score + 0.10 * area_score + 0.05 * he_score + 0.03 * consensus
                 bav_balanced = (size_penalty ** 0.45) * bav_recall
             else:
                 bav_recall = scores["high_recall"]
@@ -757,13 +799,13 @@ def main() -> None:
             scores["bav_focus_recall"] = bav_recall
             scores["bav_focus_balanced"] = bav_balanced
             if slug in {"lung_bronchiola", "lung_vessels"}:
-                class_weighted = 0.42 * molecular + 0.18 * he_score + 0.18 * shape_score + 0.14 * source_score + 0.08 * consensus
+                class_weighted = 0.32 * molecular + 0.24 * factor_semantic + 0.15 * he_score + 0.15 * shape_score + 0.09 * source_score + 0.05 * consensus
             elif slug == "lung_alveoli_normal_adjacent":
-                class_weighted = 0.18 * molecular + 0.42 * he_score + 0.22 * shape_score + 0.12 * source_score + 0.06 * consensus
+                class_weighted = 0.16 * molecular + 0.18 * factor_semantic + 0.34 * he_score + 0.18 * shape_score + 0.09 * source_score + 0.05 * consensus
             elif slug in {"erythorocytes", "pigment"}:
                 class_weighted = 0.10 * molecular + 0.55 * he_score + 0.20 * shape_score + 0.10 * source_score + 0.05 * consensus
             else:
-                class_weighted = 0.28 * molecular + 0.28 * he_score + 0.22 * shape_score + 0.12 * source_score + 0.10 * consensus
+                class_weighted = 0.22 * molecular + 0.18 * factor_semantic + 0.24 * he_score + 0.18 * shape_score + 0.10 * source_score + 0.08 * consensus
             scores["class_weighted"] = class_weighted
             for ranker, score in scores.items():
                 score_rows.append(
@@ -773,6 +815,7 @@ def main() -> None:
                         "ranker": ranker,
                         "score": score,
                         "molecular_score": molecular,
+                        "factor_semantic_score": factor_semantic,
                         "molecular_mean_score": molecular_mean,
                         "prior_mean_score": prior_mean,
                         "prior_contrast_score": prior_contrast,
@@ -785,6 +828,8 @@ def main() -> None:
                         "source_score": source_score,
                         "consensus_score": consensus,
                         "clip_score": clip_score,
+                        "ficture_clip_score": ficture_clip_score,
+                        "target_factor_hints": label_factor_hints(semantic_factors, slug, top_n=4),
                     }
                 )
 
@@ -872,15 +917,22 @@ def main() -> None:
             crop = candidate_crop(he, get_mask(cand.mask_path))
             crop_path = label_crop_dir / f"rank{rank:02d}_{cand.source}_{cand.setting}_candidate{cand.candidate_id:04d}.png"
             Image.fromarray(crop).save(crop_path)
+            cand_hist = label_hist(factor_labels, get_mask(cand.mask_path), n_factors)
+            factor_context = (
+                f"Target-supporting FICTURE factors: {label_factor_hints(semantic_factors, slug, top_n=4) or 'none'}. "
+                f"Candidate factor composition: {factor_histogram_summary(cand_hist, semantic_factors, label=slug, top_n=5)}."
+            )
             vlm_prompts.append(
                 {
                     "label": slug,
                     "display": display,
                     "crop_path": str(crop_path),
                     "candidate": f"{cand.source}/{cand.setting}/{cand.candidate_id}",
+                    "factor_context": factor_context,
                     "prompt": (
                         f"This is an H&E crop overlaid with one candidate mask. "
                         f"Does the blue candidate region look morphologically consistent with {display}? "
+                        f"Use this FICTURE factor context as molecular evidence: {factor_context} "
                         "Answer with a score from 0 to 1 and one short reason."
                     ),
                 }

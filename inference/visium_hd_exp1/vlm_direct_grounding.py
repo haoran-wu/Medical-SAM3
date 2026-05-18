@@ -38,6 +38,7 @@ from vlm_candidate_judge import (  # noqa: E402
     slugify,
     vlm_generate,
 )
+from ficture_factor_semantics import label_factor_hints, legend_text, load_semantic_legend  # noqa: E402
 
 
 def read_mask(path: Path) -> np.ndarray:
@@ -197,7 +198,7 @@ def make_context_images(he: np.ndarray, ficture: np.ndarray, prior_rgb: np.ndarr
     return imgs
 
 
-def prompt_for_label(label: str) -> Tuple[str, str]:
+def prompt_for_label(label: str, factor_context: str = "") -> Tuple[str, str]:
     display = dict(LABEL_ORDER)[label]
     desc = LABEL_DESCRIPTIONS[label]
     system = "You are a pathology visual grounding assistant. Return only valid JSON."
@@ -209,6 +210,9 @@ Image 3: class-specific gene/FICTURE prior heatmap where warm colors indicate st
 
 Target class: {display}
 Definition: {desc}
+
+FICTURE interpretation context:
+{factor_context}
 
 Task: directly mark where this target tissue class is located. Prefer recall, but avoid clearly unrelated tissue.
 Return JSON only as a list of regions. Use normalized coordinates from 0 to 1000 relative to the image:
@@ -229,6 +233,7 @@ def main() -> None:
     parser.add_argument("--ficture-image", type=Path, required=True)
     parser.add_argument("--factor-label-npy", type=Path, required=True)
     parser.add_argument("--factor-annotation", type=Path, required=True)
+    parser.add_argument("--factor-semantic-legend", type=Path, default=None)
     parser.add_argument("--summary-path", type=Path, required=True)
     parser.add_argument("--output-dir", type=Path, required=True)
     parser.add_argument("--model", required=True)
@@ -250,6 +255,8 @@ def main() -> None:
     ficture = resize_rgb(np.array(Image.open(args.ficture_image).convert("RGB")), shape)
     n_factors = int(factor_labels[factor_labels >= 0].max()) + 1 if np.any(factor_labels >= 0) else 1
     gene_scores = load_gene_factor_scores(args.factor_annotation, n_factors)
+    semantic_factors = load_semantic_legend(args.factor_semantic_legend, n_factors=n_factors)
+    full_legend_text = legend_text(semantic_factors) if semantic_factors else "No factor semantic legend was provided."
     gt_masks = load_summary_masks(args.summary_path, shape)
     labels = [slug for slug, _ in LABEL_ORDER]
     candidates = load_candidate_rows(args.score_csv, labels, args.rankers, args.per_label)
@@ -260,7 +267,11 @@ def main() -> None:
     best_rows = {}
     for label, display in LABEL_ORDER:
         prior_rgb = render_prior_rgb(prior_map_for_label(factor_labels, gene_scores.get(label, np.zeros(n_factors))))
-        system, prompt = prompt_for_label(label)
+        factor_context = (
+            f"Target-supporting factors: {label_factor_hints(semantic_factors, label, top_n=4) or 'none'}\n"
+            f"Full color legend:\n{full_legend_text}"
+        )
+        system, prompt = prompt_for_label(label, factor_context)
         raw = vlm_generate(processor, model, args.device, make_context_images(he, ficture, prior_rgb), system, prompt, args.max_new_tokens)
         regions = parse_grounding(raw)
         direct_mask, boxes = rasterize_regions(regions, shape)

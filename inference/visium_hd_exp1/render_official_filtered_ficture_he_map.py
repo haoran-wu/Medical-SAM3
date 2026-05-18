@@ -16,6 +16,8 @@ import numpy as np
 from PIL import Image, ImageDraw, ImageFont
 from scipy import ndimage as ndi
 
+from ficture_factor_semantics import build_semantic_legend, write_outputs
+
 
 PROJECT_ROOT = Path(__file__).resolve().parent.parent.parent
 DEFAULT_FILTERED_FICTURE_PNG = (
@@ -340,6 +342,9 @@ def main() -> None:
     Image.fromarray(canvas_deseamed).save(ficture_path)
     Image.fromarray(overlay).save(overlay_path)
     save_qc_triptych(he, canvas_deseamed, overlay, qc_path, args.qc_height)
+    semantic_legend_path = args.output_dir / "factor_semantic_legend.json"
+    if args.factor_info.exists():
+        write_outputs(build_semantic_legend(args.factor_info), args.output_dir)
 
     final_mask = canvas_deseamed.sum(axis=2) > 0
     reference_metrics = compare_to_reference(final_mask, args.reference_results_coordinate_map)
@@ -424,6 +429,7 @@ def main() -> None:
             "official_filtered_ficture_full_he_canvas_png": str(ficture_path),
             "official_overlay_on_he_png": str(overlay_path),
             "official_qc_triptych_png": str(qc_path),
+            "factor_semantic_legend_json": str(semantic_legend_path),
             "summary_official_json": str(summary_path),
         },
         "not_official": [

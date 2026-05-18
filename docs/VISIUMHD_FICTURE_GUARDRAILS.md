@@ -23,10 +23,31 @@ The canonical files are:
 - `filtered_ficture_official_full_he_canvas.png`
 - `filtered_ficture_official_overlay_on_he.png`
 - `filtered_ficture_official_qc_triptych.png`
+- `factor_semantic_legend.json`
+- `factor_semantic_legend.csv`
 - `summary_official.json`
 
 `summary_official.json` must say `PASS_OFFICIAL` before any downstream result
 is reported.
+
+## Required Factor Semantics
+
+The official renderer also builds a semantic legend from:
+
+```text
+pixel-level cell type image/visiumhd_exp1_hex12_k12/hex_12.k12.pixel.info.tsv
+```
+
+The legend records, for every FICTURE false color, the RGB value, top marker
+genes, and an LLM/marker-gene inferred cell type. Official ranking and VLM jobs
+must pass this file via `--factor-semantic-legend`:
+
+```text
+output/visium_hd_exp1/ficture_official_filtered_he_aligned/factor_semantic_legend.json
+```
+
+This is required because VLM/CLIP should interpret the FICTURE map as a
+color-coded molecular factor map, not as arbitrary RGB texture.
 
 ## Required Source
 

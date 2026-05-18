@@ -505,7 +505,13 @@ def compute_clip_scores(
         label_slices[slug] = (start, len(label_prompts))
 
     with torch.no_grad():
-        text_inputs = processor(text=label_prompts, return_tensors="pt", padding=True, truncation=True).to(device)
+        text_inputs = processor(
+            text=label_prompts,
+            return_tensors="pt",
+            padding=True,
+            truncation=True,
+            max_length=77,
+        ).to(device)
         text_features = pooled_features(model.get_text_features(**text_inputs))
         text_features = text_features / text_features.norm(dim=-1, keepdim=True)
         label_features = []

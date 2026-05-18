@@ -292,14 +292,28 @@ def factor_histogram_summary(hist: np.ndarray, factors: Sequence[dict], label: s
 
 
 def semantic_clip_prompts(base_prompts: Dict[str, List[str]], factors: Sequence[dict]) -> Dict[str, List[str]]:
+    def compact_hint(label: str) -> str:
+        ranked = []
+        for item in factors:
+            score = float((item.get("target_scores") or {}).get(label, 0.0))
+            if score > 0:
+                ranked.append((score, int(item["factor"]), item))
+        pieces = []
+        for score, factor, item in sorted(ranked, reverse=True)[:3]:
+            genes = (item.get("top_genes_specific") or [])[:2]
+            marker_text = f" markers {', '.join(genes)}" if genes else ""
+            pieces.append(f"F{factor} {item.get('short_name', 'factor')}{marker_text}")
+        return "; ".join(pieces)
+
     prompts = {slug: list(texts) for slug, texts in base_prompts.items()}
     for slug in TARGET_LABELS:
-        hint = label_factor_hints(factors, slug, top_n=3)
+        hint = compact_hint(slug)
         if hint:
+            label_text = slugify(slug).replace("_", " ")
             prompts.setdefault(slug, []).extend(
                 [
-                    f"a FICTURE spatial transcriptomics factor-map crop for {slugify(slug).replace('_', ' ')} dominated by {hint}",
-                    f"false-color FICTURE map regions matching {slugify(slug).replace('_', ' ')} factors: {hint}",
+                    f"FICTURE factor-map crop for {label_text}: {hint}",
+                    f"false-color spatial transcriptomics matching {label_text}: {hint}",
                 ]
             )
     return prompts

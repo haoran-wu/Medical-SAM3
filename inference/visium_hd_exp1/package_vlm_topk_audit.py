@@ -196,6 +196,8 @@ def main() -> None:
     parser.add_argument("--vlm-root", type=Path, action="append", required=True)
     parser.add_argument("--output-dir", type=Path, required=True)
     parser.add_argument("--title", default="Official FICTURE VLM top-k selection audit")
+    parser.add_argument("--ranker", action="append", default=None, help="Only include these rankers, e.g. vlm_fused.")
+    parser.add_argument("--ranker-display-name", default=None, help="Friendly label to show instead of the raw ranker name.")
     args = parser.parse_args()
 
     project = args.project_root.resolve()
@@ -256,11 +258,15 @@ def main() -> None:
         html_parts.append("</tbody></table>")
 
         selection_rows = [r for r in read_csv(selection_path) if r.get("label") in LABEL_ORDER]
+        if args.ranker:
+            keep_rankers = set(args.ranker)
+            selection_rows = [r for r in selection_rows if r.get("ranker") in keep_rankers]
         selection_rows.sort(key=lambda r: (LABEL_ORDER.index(r["label"]), r["ranker"], int(r["top_k"])))
         for row in selection_rows:
             label = row["label"]
             display = row.get("display") or LABEL_DISPLAY.get(label, label)
             ranker = row["ranker"]
+            shown_ranker = args.ranker_display_name or ranker
             top_k = row["top_k"]
             selected = [s for s in row.get("selected", "").split(";") if s]
             masks = []
@@ -286,14 +292,15 @@ def main() -> None:
                 masks,
                 union_path,
                 label,
-                f"{display} {ranker} top-{top_k}: D {float(row['dice']):.3f} P {float(row['precision']):.3f} R {float(row['recall']):.3f}",
+                f"{display} {shown_ranker} top-{top_k}: D {float(row['dice']):.3f} P {float(row['precision']):.3f} R {float(row['recall']):.3f}",
             )
 
             rows_out.append({
                 "run": root.name,
                 "model": params.get("MODEL_NAME", ""),
                 "label": display,
-                "ranker": ranker,
+                "ranker": shown_ranker,
+                "raw_ranker": ranker,
                 "top_k": top_k,
                 "dice": row["dice"],
                 "precision": row["precision"],
@@ -304,7 +311,7 @@ def main() -> None:
 
             html_parts.append("<div class='rowblk'>")
             html_parts.append(
-                f"<h3>{html.escape(display)} | {html.escape(ranker)} | top_k={html.escape(top_k)}</h3>"
+                f"<h3>{html.escape(display)} | {html.escape(shown_ranker)} | top_k={html.escape(top_k)}</h3>"
                 f"<p class='metric'>Dice {float(row['dice']):.3f} | Precision {float(row['precision']):.3f} | Recall {float(row['recall']):.3f} | n_selected={html.escape(row.get('n_selected',''))}</p>"
                 f"<img class='union' src='{rel(union_path, output_dir)}'>"
             )

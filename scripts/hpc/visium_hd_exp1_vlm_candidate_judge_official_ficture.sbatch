@@ -25,6 +25,7 @@ MAX_OVERLAP=${MAX_OVERLAP:-0.82}
 MAX_NEW_TOKENS=${MAX_NEW_TOKENS:-96}
 MAX_FACTOR_CONTEXT_CHARS=${MAX_FACTOR_CONTEXT_CHARS:-2400}
 SCORE_GLOB=${SCORE_GLOB:-official_ficture_*}
+RANKERS_LIST=${RANKERS_LIST:-"molecular_only:class_weighted:bav_focus_recall:bav_focus_balanced:salip_clip:precision_gated:salip_clip_molecular:factor_semantic:alveoli_precision_prior:alveoli_conservative:vessel_elongated_prior:high_recall:molecular_he:molecular_shape:multimodal_equal:alveoli_clip_precision"}
 
 OUT=$OUTBASE/${RUN_NAME}_${SLURM_JOB_ID}
 
@@ -75,12 +76,14 @@ if [[ ${#score_args[@]} -eq 0 ]]; then
 fi
 
 IFS=':' read -r -a top_ks <<< "$TOP_KS_LIST"
+IFS=':' read -r -a rankers <<< "$RANKERS_LIST"
 
 date
 echo "RUN_NAME=$RUN_NAME"
 echo "MODEL_NAME=$MODEL_NAME"
 echo "FACTOR_SEMANTIC_LEGEND=$FACTOR_SEMANTIC_LEGEND"
 echo "PER_LABEL=$PER_LABEL TOP_KS=$TOP_KS_LIST MAX_OVERLAP=$MAX_OVERLAP MAX_FACTOR_CONTEXT_CHARS=$MAX_FACTOR_CONTEXT_CHARS"
+echo "RANKERS_LIST=$RANKERS_LIST"
 printf 'Official score args: %s\n' "${score_args[@]}"
 nvidia-smi || true
 "$PY" inference/visium_hd_exp1/vlm_candidate_judge.py \
@@ -96,6 +99,7 @@ nvidia-smi || true
   --device cuda \
   --per-label "$PER_LABEL" \
   --top-ks "${top_ks[@]}" \
+  --rankers "${rankers[@]}" \
   --max-overlap "$MAX_OVERLAP" \
   --max-new-tokens "$MAX_NEW_TOKENS" \
   --max-factor-context-chars "$MAX_FACTOR_CONTEXT_CHARS"

@@ -36,18 +36,27 @@ LABEL_ORDER = [
     ("lung_bronchiola", "bronchiola"),
     ("lung_alveoli_normal_adjacent", "alveoli"),
     ("lung_vessels", "vessels"),
+    ("tumor", "tumor"),
+    ("stroma", "stroma"),
+    ("immune_infiltration", "immune infiltration"),
 ]
 
 LABEL_DESCRIPTIONS = {
     "lung_bronchiola": "bronchiolar airway tissue: airway-like lumen, epithelial lining, branching or folded bronchiole morphology",
     "lung_alveoli_normal_adjacent": "normal adjacent alveoli: porous lung parenchyma, preserved open air spaces, not solid tumor or broad stroma",
     "lung_vessels": "lung vessel tissue: vascular lumen or elongated blood-vessel structure, sometimes containing red blood cells",
+    "tumor": "tumor tissue: malignant epithelial/tumor region, denser atypical cellular areas, not normal alveoli or vessel lumen",
+    "stroma": "stroma: connective/desmoplastic supporting tissue, fibrous matrix and broad stromal bands, not epithelial tumor nests",
+    "immune_infiltration": "immune infiltration: lymphocyte/macrophage-rich inflammatory infiltrate, small dense immune cells or immune aggregates",
 }
 
 LABEL_COLORS = {
     "lung_bronchiola": (31, 119, 180),
     "lung_alveoli_normal_adjacent": (245, 245, 220),
     "lung_vessels": (50, 205, 215),
+    "tumor": (23, 190, 207),
+    "stroma": (188, 189, 34),
+    "immune_infiltration": (44, 160, 44),
 }
 
 

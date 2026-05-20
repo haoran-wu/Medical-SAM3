@@ -24,18 +24,27 @@ LABEL_ORDER = [
     "lung_bronchiola",
     "lung_alveoli_normal_adjacent",
     "lung_vessels",
+    "tumor",
+    "stroma",
+    "immune_infiltration",
 ]
 
 LABEL_DISPLAY = {
     "lung_bronchiola": "bronchiola",
     "lung_alveoli_normal_adjacent": "alveoli",
     "lung_vessels": "vessels",
+    "tumor": "tumor",
+    "stroma": "stroma",
+    "immune_infiltration": "immune infiltration",
 }
 
 COLORS = {
     "lung_bronchiola": (31, 119, 180),
     "lung_alveoli_normal_adjacent": (245, 245, 220),
     "lung_vessels": (50, 205, 215),
+    "tumor": (23, 190, 207),
+    "stroma": (188, 189, 34),
+    "immune_infiltration": (44, 160, 44),
 }
 
 

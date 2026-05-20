@@ -59,6 +59,7 @@ for model in "${MODELS[@]}"; do
     TOP_KS_LIST="1:2:3:5" \
     MAX_OVERLAP=0.82 \
     MAX_NEW_TOKENS=64 \
+    MAX_FACTOR_CONTEXT_CHARS=1800 \
     FACTOR_SEMANTIC_LEGEND="$PROJECT/output/visium_hd_exp1/ficture_official_filtered_he_aligned/factor_semantic_legend.json" \
       bash "$JUDGE_SCRIPT"
   ) >"$child_log" 2>&1

@@ -289,6 +289,13 @@ Return JSON only:
     return system, prompt.strip()
 
 
+def trim_factor_context(text: str, max_chars: int) -> str:
+    if max_chars <= 0 or len(text) <= max_chars:
+        return text
+    head = text[:max_chars].rstrip()
+    return head + "\n[Factor legend truncated for this VLM context window.]"
+
+
 def parse_json_score(text: str) -> Dict[str, object]:
     match = re.search(r"\{.*\}", text, flags=re.S)
     if not match:
@@ -381,6 +388,7 @@ def main() -> None:
     parser.add_argument("--top-ks", type=int, nargs="+", default=[1, 2, 3, 5, 8, 12])
     parser.add_argument("--max-overlap", type=float, default=0.82)
     parser.add_argument("--max-new-tokens", type=int, default=96)
+    parser.add_argument("--max-factor-context-chars", type=int, default=2400)
     parser.add_argument("--rankers", nargs="+", default=["molecular_only", "class_weighted", "bav_focus_recall", "bav_focus_balanced", "salip_clip", "precision_gated"])
     args = parser.parse_args()
 
@@ -434,6 +442,7 @@ def main() -> None:
             f"Candidate mask factor composition: {composition}\n"
             f"Full color legend:\n{full_legend_text}"
         )
+        factor_context = trim_factor_context(factor_context, args.max_factor_context_chars)
         system, prompt = build_messages(cand.label, cand, factor_context)
         raw = vlm_generate(processor, model, args.device, images, system, prompt, args.max_new_tokens)
         parsed = parse_json_score(raw)

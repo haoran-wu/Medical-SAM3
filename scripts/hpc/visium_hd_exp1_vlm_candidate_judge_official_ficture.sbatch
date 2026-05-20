@@ -23,6 +23,7 @@ PER_LABEL=${PER_LABEL:-24}
 TOP_KS_LIST=${TOP_KS_LIST:-"1:2:3:5:8:12"}
 MAX_OVERLAP=${MAX_OVERLAP:-0.82}
 MAX_NEW_TOKENS=${MAX_NEW_TOKENS:-96}
+MAX_FACTOR_CONTEXT_CHARS=${MAX_FACTOR_CONTEXT_CHARS:-2400}
 SCORE_GLOB=${SCORE_GLOB:-official_ficture_*}
 
 OUT=$OUTBASE/${RUN_NAME}_${SLURM_JOB_ID}
@@ -79,7 +80,7 @@ date
 echo "RUN_NAME=$RUN_NAME"
 echo "MODEL_NAME=$MODEL_NAME"
 echo "FACTOR_SEMANTIC_LEGEND=$FACTOR_SEMANTIC_LEGEND"
-echo "PER_LABEL=$PER_LABEL TOP_KS=$TOP_KS_LIST MAX_OVERLAP=$MAX_OVERLAP"
+echo "PER_LABEL=$PER_LABEL TOP_KS=$TOP_KS_LIST MAX_OVERLAP=$MAX_OVERLAP MAX_FACTOR_CONTEXT_CHARS=$MAX_FACTOR_CONTEXT_CHARS"
 printf 'Official score args: %s\n' "${score_args[@]}"
 nvidia-smi || true
 "$PY" inference/visium_hd_exp1/vlm_candidate_judge.py \
@@ -96,6 +97,7 @@ nvidia-smi || true
   --per-label "$PER_LABEL" \
   --top-ks "${top_ks[@]}" \
   --max-overlap "$MAX_OVERLAP" \
-  --max-new-tokens "$MAX_NEW_TOKENS"
+  --max-new-tokens "$MAX_NEW_TOKENS" \
+  --max-factor-context-chars "$MAX_FACTOR_CONTEXT_CHARS"
 date
 echo "Output: $OUT"

@@ -283,8 +283,9 @@ FICTURE interpretation context:
 {factor_context}
 
 Score this candidate for the target class. Prefer masks that cover the real target tissue while avoiding unrelated tissue.
-Return JSON only:
-{{"score": 0.0-1.0, "recall": 0.0-1.0, "precision": 0.0-1.0, "reason": "short reason"}}
+Return only one valid JSON object with numeric values between 0 and 1.
+Use this exact key format, but estimate your own values:
+{{"score": 0.73, "recall": 0.68, "precision": 0.82, "reason": "short reason"}}
 """
     return system, prompt.strip()
 

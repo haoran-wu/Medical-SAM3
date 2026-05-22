@@ -26,7 +26,7 @@ import sys
 from pathlib import Path
 from typing import Dict, Iterable, List, Optional, Sequence, Tuple
 
-PROJECT_ROOT = Path(__file__).resolve().parent.parent.parent
+PROJECT_ROOT = Path(os.environ.get("PROJECT_ROOT_OVERRIDE", str(Path(__file__).resolve().parent.parent.parent)))
 MPL_CONFIG_DIR = PROJECT_ROOT / "output" / ".mplconfig"
 MPL_CONFIG_DIR.mkdir(parents=True, exist_ok=True)
 os.environ.setdefault("MPLCONFIGDIR", str(MPL_CONFIG_DIR))
@@ -296,6 +296,7 @@ def draw_label_panel(
 def write_candidate_csv(candidates: Sequence[Dict[str, object]], path: Path) -> None:
     fieldnames = [
         "candidate_id",
+        "prompt_index",
         "prompt_type",
         "point_x",
         "point_y",
@@ -319,6 +320,7 @@ def write_candidate_csv(candidates: Sequence[Dict[str, object]], path: Path) -> 
             writer.writerow(
                 {
                     "candidate_id": idx,
+                    "prompt_index": cand.get("prompt_index"),
                     "prompt_type": cand.get("prompt_type"),
                     "point_x": point[0],
                     "point_y": point[1],
@@ -357,12 +359,29 @@ def main() -> None:
     parser.add_argument("--box-size", type=int, default=192)
     parser.add_argument("--box-stride", type=int, default=96)
     parser.add_argument("--max-boxes", type=int, default=0)
+    parser.add_argument(
+        "--prompt-start",
+        type=int,
+        default=0,
+        help="Start offset into the generated point/box prompt list. Used for resumable chunk jobs.",
+    )
+    parser.add_argument(
+        "--prompt-count",
+        type=int,
+        default=0,
+        help="Number of prompts to process after --prompt-start. 0 means process all remaining prompts.",
+    )
     parser.add_argument("--min-area-frac", type=float, default=0.0002)
     parser.add_argument("--max-area-frac", type=float, default=0.35)
     parser.add_argument("--nms-iou", type=float, default=0.92)
     parser.add_argument("--save-mask-limit", type=int, default=80)
     parser.add_argument("--contact-sheet-limit", type=int, default=25)
     parser.add_argument("--no-tissue-filter", action="store_true")
+    parser.add_argument(
+        "--skip-label-eval",
+        action="store_true",
+        help="Skip per-label Dice/Precision/Recall panels. Useful for chunk jobs that will be merged later.",
+    )
     args = parser.parse_args()
 
     if not args.image_path.exists():
@@ -378,14 +397,14 @@ def main() -> None:
     records = []
     gt_masks: List[np.ndarray] = []
     summary_path = args.summary_path
-    if summary_path is not None and summary_path.exists():
+    if summary_path is not None and summary_path.exists() and not args.skip_label_eval:
         summary = json.loads(summary_path.read_text())
         records = select_label_records(summary["labels"], include_labels=parse_label_filter(args.labels))
         gt_masks = [
             load_binary_mask(resolve_mask_path(PROJECT_ROOT, summary_path, str(item["mask_path"])))
             for _, item in records
         ]
-    elif args.labels:
+    elif args.labels and not args.skip_label_eval:
         raise FileNotFoundError(f"Summary path not found for label evaluation: {summary_path}")
 
     max_side = None if args.max_side == 0 else args.max_side
@@ -441,6 +460,21 @@ def main() -> None:
         prompts = [{"prompt_type": "point", "point_xy": point} for point in points]
     else:
         prompts = [{"prompt_type": "box", "prompt_box_xyxy": box} for box in boxes]
+    total_prompts = len(prompts)
+    prompt_start = max(0, int(args.prompt_start))
+    if args.prompt_count and args.prompt_count > 0:
+        prompt_end = min(total_prompts, prompt_start + int(args.prompt_count))
+    else:
+        prompt_end = total_prompts
+    prompts = [
+        {**prompt, "prompt_index": prompt_start + offset}
+        for offset, prompt in enumerate(prompts[prompt_start:prompt_end])
+    ]
+    print(
+        f"Prompt slice: start={prompt_start}, end={prompt_end}, "
+        f"count={len(prompts)}, total={total_prompts}",
+        flush=True,
+    )
 
     for idx, prompt in enumerate(prompts, start=1):
         if prompt["prompt_type"] == "point":
@@ -479,6 +513,7 @@ def main() -> None:
         bbox = generate_bbox_from_mask(pred)
         candidate = {
             "prompt_type": prompt["prompt_type"],
+            "prompt_index": int(prompt.get("prompt_index", idx - 1)),
             "area": area,
             "bbox_xyxy": list(bbox) if bbox is not None else None,
             "mask": pred,
@@ -571,6 +606,11 @@ def main() -> None:
         "image_shape": [int(image_h), int(image_w)],
         "proposal_mode": args.proposal_mode,
         "text_prompt": args.text_prompt,
+        "prompt_start": prompt_start,
+        "prompt_end": prompt_end,
+        "n_total_prompts": total_prompts,
+        "n_processed_prompts": len(prompts),
+        "skip_label_eval": bool(args.skip_label_eval),
         "grid_step": args.grid_step,
         "border": args.border,
         "n_points": len(points),

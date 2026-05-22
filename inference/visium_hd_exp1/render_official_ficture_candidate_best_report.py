@@ -19,7 +19,9 @@ import textwrap
 from pathlib import Path
 from typing import Dict, Iterable, List, Tuple
 
-PROJECT_ROOT = Path(__file__).resolve().parent.parent.parent
+PROJECT_ROOT = Path(
+    os.environ.get("PROJECT_ROOT_OVERRIDE", str(Path(__file__).resolve().parent.parent.parent))
+)
 sys.path.insert(0, str(PROJECT_ROOT / "inference"))
 sys.path.insert(0, str(PROJECT_ROOT / "inference" / "visium_hd_exp1"))
 
@@ -48,6 +50,9 @@ OFFICIAL_SUMMARY = PROJECT_ROOT / "output/visium_hd_exp1/ficture_official_filter
 OFFICIAL_INPUT_DIR = PROJECT_ROOT / "output/visium_hd_exp1/ficture_official_filtered_candidate_pool_input_roi"
 OFFICIAL_CANDIDATE_ROOT = PROJECT_ROOT / "results/visium_hd_exp1/ficture_official_filtered_candidate_pool"
 DEFAULT_OUTPUT_DIR = PROJECT_ROOT / "output/visium_hd_exp1/official_ficture_candidate_best_report"
+METHOD_MODALITY_LABEL = "FICTURE ROI"
+REPORT_TITLE = "Official FICTURE Candidate Best By Dice"
+ARTIFACT_PREFIX = "official_ficture_candidate"
 
 REQUIRED_STATUS_CHECKS = [
     "uses_filtered_png_source",
@@ -200,19 +205,26 @@ def read_reports(roots: Iterable[Path]) -> List[Tuple[Path, dict]]:
     return reports
 
 
+def output_ref(path: Path) -> str:
+    try:
+        return str(path.relative_to(PROJECT_ROOT))
+    except ValueError:
+        return str(path)
+
+
 def method_label(setting: str) -> str:
     model = "Medical-SAM3" if setting.startswith("medical") else "SAM"
     point_step = re.search(r"(?:points?_step|point)(\d+)", setting)
     if "point" in setting and point_step:
-        return f"{model} on FICTURE ROI, point prompts ({point_step.group(1)} px spacing)"
+        return f"{model} on {METHOD_MODALITY_LABEL}, point prompts ({point_step.group(1)} px spacing)"
     if "point" in setting:
-        return f"{model} on FICTURE ROI, point prompts"
+        return f"{model} on {METHOD_MODALITY_LABEL}, point prompts"
     box = re.search(r"(?:box|b)(\d+)_s(\d+)", setting)
     if box:
-        return f"{model} on FICTURE ROI, box prompts ({box.group(1)} px box, {box.group(2)} px stride)"
+        return f"{model} on {METHOD_MODALITY_LABEL}, box prompts ({box.group(1)} px box, {box.group(2)} px stride)"
     if "box" in setting:
-        return f"{model} on FICTURE ROI, box prompts"
-    return f"{model} on FICTURE ROI"
+        return f"{model} on {METHOD_MODALITY_LABEL}, box prompts"
+    return f"{model} on {METHOD_MODALITY_LABEL}"
 
 
 def candidate_mask_path(run_dir: Path, candidate_idx: int) -> Path:
@@ -470,7 +482,7 @@ def write_table_files(rows: List[dict], output_dir: Path, preflight: dict, repor
         "figure_path",
         "candidate_mask_path",
     ]
-    csv_path = output_dir / "official_ficture_candidate_best_by_dice.csv"
+    csv_path = output_dir / f"{ARTIFACT_PREFIX}_best_by_dice.csv"
     with csv_path.open("w", newline="") as f:
         writer = csv.DictWriter(f, fieldnames=csv_fields)
         writer.writeheader()
@@ -478,7 +490,7 @@ def write_table_files(rows: List[dict], output_dir: Path, preflight: dict, repor
             writer.writerow({key: row.get(key, "") for key in csv_fields})
 
     md_lines = [
-        "# Official FICTURE Candidate Best By Dice",
+        f"# {REPORT_TITLE}",
         "",
         f"PASS_OFFICIAL: {preflight['summary']['status']}; ROI: {preflight['roi_size_wh'][0]} x {preflight['roi_size_wh'][1]}; "
         f"factor index: {tuple(preflight['factor_shape'])}; reports: {report_count}; unique settings: {unique_settings}.",
@@ -491,8 +503,8 @@ def write_table_files(rows: List[dict], output_dir: Path, preflight: dict, repor
             f"| {row['tissue class']} | {row['best Dice']:.3f} | {row['Precision']:.3f} | {row['Recall']:.3f} | "
             f"{row['25%']:.3f} | {row['median']:.3f} | {row['75%']:.3f} | {row['best-performing method']} |"
         )
-    (output_dir / "official_ficture_candidate_best_by_dice.md").write_text("\n".join(md_lines) + "\n")
-    render_table_png(rows, output_dir / "official_ficture_candidate_best_by_dice_table.png")
+    (output_dir / f"{ARTIFACT_PREFIX}_best_by_dice.md").write_text("\n".join(md_lines) + "\n")
+    render_table_png(rows, output_dir / f"{ARTIFACT_PREFIX}_best_by_dice_table.png")
 
 
 def render_figures(rows: List[dict], preflight: dict, output_dir: Path, reconstructor: Reconstructor | None) -> None:
@@ -519,7 +531,7 @@ def render_figures(rows: List[dict], preflight: dict, output_dir: Path, reconstr
             mask_path,
             reconstructor,
         )
-        figure_path = figure_dir / f"{idx:02d}_{label}_official_ficture_best_by_dice_6panel.png"
+        figure_path = figure_dir / f"{idx:02d}_{label}_{ARTIFACT_PREFIX}_best_by_dice_6panel.png"
         render_six_panel(
             row["tissue class"],
             he,
@@ -530,8 +542,8 @@ def render_figures(rows: List[dict], preflight: dict, output_dir: Path, reconstr
             row["best-performing method"],
             figure_path,
         )
-        row["figure_path"] = str(figure_path.relative_to(PROJECT_ROOT))
-        row["candidate_mask_path"] = str(mask_path.relative_to(PROJECT_ROOT))
+        row["figure_path"] = output_ref(figure_path)
+        row["candidate_mask_path"] = output_ref(mask_path)
 
 
 def main() -> None:
@@ -543,7 +555,15 @@ def main() -> None:
     parser.add_argument("--min-unique-settings", type=int, default=48)
     parser.add_argument("--allow-reconstruct-missing", action="store_true")
     parser.add_argument("--device", choices=["cuda", "mps", "cpu"], default=None)
+    parser.add_argument("--method-modality-label", default="FICTURE ROI")
+    parser.add_argument("--report-title", default="Official FICTURE Candidate Best By Dice")
+    parser.add_argument("--artifact-prefix", default="official_ficture_candidate")
     args = parser.parse_args()
+
+    global METHOD_MODALITY_LABEL, REPORT_TITLE, ARTIFACT_PREFIX
+    METHOD_MODALITY_LABEL = args.method_modality_label
+    REPORT_TITLE = args.report_title
+    ARTIFACT_PREFIX = args.artifact_prefix
 
     args.official_summary = project_path(args.official_summary)
     args.official_input_dir = project_path(args.official_input_dir)
@@ -573,9 +593,9 @@ def main() -> None:
         "report_count": len(reports),
         "unique_settings": unique_settings,
         "outputs": {
-            "table_csv": str(args.output_dir / "official_ficture_candidate_best_by_dice.csv"),
-            "table_md": str(args.output_dir / "official_ficture_candidate_best_by_dice.md"),
-            "table_png": str(args.output_dir / "official_ficture_candidate_best_by_dice_table.png"),
+            "table_csv": str(args.output_dir / f"{ARTIFACT_PREFIX}_best_by_dice.csv"),
+            "table_md": str(args.output_dir / f"{ARTIFACT_PREFIX}_best_by_dice.md"),
+            "table_png": str(args.output_dir / f"{ARTIFACT_PREFIX}_best_by_dice_table.png"),
             "six_panel_dir": str(args.output_dir / "six_panel"),
         },
         "rows": [

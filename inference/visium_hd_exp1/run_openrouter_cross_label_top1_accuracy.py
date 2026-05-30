@@ -4,6 +4,7 @@
 from __future__ import annotations
 
 import argparse
+import ast
 import csv
 import html
 import json
@@ -47,32 +48,55 @@ CLASS_DISPLAY = {
 }
 
 SYSTEM_PROMPT = (
-    "You are a pathology image classifier. Score which tissue class the shown candidate region "
-    "most likely belongs to. Return only valid JSON."
+    "You are a careful pathology image classifier. "
+    "You will see two aligned crops of the same candidate region: H&E and FICTURE. "
+    "Score which tissue class the candidate region most likely belongs to. "
+    "Return only valid JSON."
 )
 
 USER_PROMPT = """You are given two aligned crops of the same candidate region:
 
-Image 1: H&E reverse-blur crop. The candidate region is sharp and full color; the outside region is grayscale and blurred.
+Image 1: H&E gray reverse-blur crop.
+The candidate region is sharp and full color; the outside region is grayscale and blurred.
 
-Image 2: FICTURE reverse-blur crop. The candidate region is sharp and full color; the outside region is grayscale and blurred.
+Image 2: official FICTURE gray reverse-blur crop.
+The candidate region is sharp and full color; the outside region is grayscale and blurred.
 
-Score how likely this candidate belongs to each class.
+The FICTURE colors use this legend:
+This color legend applies only to Image 2, the FICTURE crop. It does not apply to Image 1.
+The pink and purple colors in H&E are normal tissue staining, not FICTURE tumor colors.
 
-Classes:
+Color 0: RGB 255,204,255; Major Compartment: tumor-like epithelial / AT2-like malignant epithelial; cell type: tumor epithelial.
+Color 1: RGB 0,255,255; Major Compartment: vascular smooth muscle / myofibroblast / vessel wall stroma; cell type: smooth muscle vessel wall.
+Color 2: RGB 255,255,0; Major Compartment: epithelial tumor-like / mucinous-glandular epithelial; cell type: epithelial tumor-like.
+Color 3: RGB 255,84,0; Major Compartment: alveolar epithelial pneumocyte / AT2-like; cell type: alveolar epithelial.
+Color 4: RGB 0,255,84; Major Compartment: lymphoid immune with alveolar epithelial admixture; cell type: immune/alveolar mixed.
+Color 5: RGB 84,0,255; Major Compartment: alveolar epithelial pneumocyte / AT1-AT2-like; cell type: alveolar epithelial.
+Color 6: RGB 170,0,170; Major Compartment: SPP1/APOE macrophage; cell type: macrophage.
+Color 7: RGB 0,170,170; Major Compartment: bronchiolar secretory / club airway epithelium; cell type: bronchiolar secretory.
+Color 8: RGB 170,170,0; Major Compartment: plasma cell / B lineage; cell type: plasma cell.
+Color 9: RGB 255,0,127; Major Compartment: pulmonary neuroendocrine / airway basal-like rare epithelial; cell type: neuroendocrine airway.
+Color 10: RGB 153,76,0; Major Compartment: IgA plasma cell; cell type: IgA plasma cell.
+Color 11: RGB 0,115,0; Major Compartment: IgM plasma/B cell; cell type: IgM plasma cell.
+
+Score how likely this candidate region belongs to each tissue class.
+
+Tissue classes:
 bronchiola = bronchiolar airway tissue, airway-like lumen, epithelial lining.
 alveoli = alveolar lung parenchyma, open air spaces, thin septa.
-vessels = blood vessel or vascular wall, lumen-like vascular structure.
-tumor = malignant epithelial tumor region, dense tumor nests.
-stroma = stromal or mesenchymal tissue, collagen/fibroblast/smooth-muscle-like tissue.
-immune_infiltration = immune-cell-rich region, small round-cell aggregates.
+vessels = blood vessel or vascular wall, lumen-like vascular structure, smooth muscle vessel wall.
+tumor = malignant epithelial tumor region. Prefer tumor-like epithelial morphology and tumor epithelial FICTURE color support.
+stroma = stromal / mesenchymal tissue, collagen, fibroblast, smooth-muscle-like tissue. Treat stroma as a broad tissue compartment.
+immune_infiltration = immune-cell-rich region, small round-cell aggregates, macrophage / lymphoid / plasma-cell FICTURE color support.
 
 Rules:
 - Return exactly one JSON object.
-- Use exactly these six keys: bronchiola, alveoli, vessels, tumor, stroma, immune_infiltration.
+- Use exactly these six keys:
+  bronchiola, alveoli, vessels, tumor, stroma, immune_infiltration.
 - Each value must be an integer from 0 to 100.
 - Higher means more likely.
-- Do not include explanation, reason, precision, recall, Dice, markdown, or extra text.
+- Use the full 0-100 range.
+- Do not include explanation, reason, precision, recall, Dice, markdown, code fences, or extra text.
 - Do not give all classes the same score unless there is truly no visible evidence."""
 
 
@@ -89,7 +113,21 @@ def parse_scores(text: str) -> Tuple[Dict[str, int], str]:
     match = re.search(r"\{.*\}", stripped, flags=re.S)
     if not match:
         raise ValueError("No JSON object found")
-    data = json.loads(match.group(0))
+    object_text = match.group(0)
+    try:
+        data = json.loads(object_text)
+    except json.JSONDecodeError:
+        try:
+            data = ast.literal_eval(object_text)
+        except (SyntaxError, ValueError):
+            data = {}
+            for key in CLASS_KEYS:
+                key_match = re.search(
+                    rf"(?:\"{key}\"|'{key}'|{key})\s*:\s*(-?\d+(?:\.\d+)?)",
+                    object_text,
+                )
+                if key_match:
+                    data[key] = key_match.group(1)
     if set(data.keys()) != set(CLASS_KEYS):
         raise ValueError(f"Expected keys {CLASS_KEYS}, got {sorted(data.keys())}")
     scores: Dict[str, int] = {}
@@ -106,7 +144,7 @@ def parse_scores(text: str) -> Tuple[Dict[str, int], str]:
         if integer < 0 or integer > 100:
             raise ValueError(f"{key} score out of range: {integer}")
         scores[key] = integer
-    return scores, match.group(0)
+    return scores, json.dumps(scores, sort_keys=True)
 
 
 def load_api_key(env_name: str, key_file: Path | None) -> str:
@@ -251,11 +289,75 @@ def write_accuracy_tables(output_dir: Path, prediction_rows: List[dict]) -> None
     write_csv(output_dir / "per_class_accuracy.csv", per_class)
 
 
+def score_warning(scores: Sequence[int]) -> Tuple[int, int, str]:
+    unique_count = len(set(scores))
+    top_score = max(scores) if scores else 0
+    top1_tie_size = sum(1 for score in scores if score == top_score)
+    if unique_count <= 1:
+        return unique_count, top1_tie_size, "all same score"
+    if unique_count <= 2 or top1_tie_size >= 5:
+        return unique_count, top1_tie_size, "coarse or tied scores"
+    return unique_count, top1_tie_size, ""
+
+
+def write_same_class_retrieval_tables(output_dir: Path, prediction_rows: List[dict]) -> None:
+    valid_rows = [row for row in prediction_rows if row.get("parse_status") == "ok"]
+    metrics_rows: List[dict] = []
+    score_rows: List[dict] = []
+    for class_key in CLASS_KEYS:
+        label_rows = [row for row in valid_rows if row["true_class"] == class_key]
+        for row in label_rows:
+            score_rows.append(
+                {
+                    "row_index": row["row_index"],
+                    "candidate_uid": row["candidate_uid"],
+                    "target_class": class_key,
+                    "sample_bucket": row["sample_bucket"],
+                    "source": row["source"],
+                    "run": row["run"],
+                    "setting": row["setting"],
+                    "candidate_id": row["candidate_id"],
+                    "target_class_score": row[class_key],
+                }
+            )
+        ranked = sorted(label_rows, key=lambda item: int(item[class_key]), reverse=True)
+        if not ranked:
+            continue
+        target_scores = [int(row[class_key]) for row in ranked]
+        unique_count, top1_tie_size, warning = score_warning(target_scores)
+        top1 = ranked[0]
+        top5 = ranked[:5]
+        good_ranks = [idx + 1 for idx, row in enumerate(ranked) if row["sample_bucket"] == "GOOD"]
+        metrics_rows.append(
+            {
+                "target_class": class_key,
+                "display": CLASS_DISPLAY[class_key],
+                "n_candidates": len(ranked),
+                "top1_good": "true" if top1["sample_bucket"] == "GOOD" and top1_tie_size == 1 else "false",
+                "top1_bucket": top1["sample_bucket"],
+                "good_in_top5": sum(1 for row in top5 if row["sample_bucket"] == "GOOD"),
+                "best_good_rank": min(good_ranks) if good_ranks else "",
+                "unique_scores": f"{unique_count}/{len(ranked)}",
+                "top1_tie_size": top1_tie_size,
+                "tie_warning": warning,
+                "top1_score": top1[class_key],
+                "top1_candidate": f"{top1['source']}/{top1['setting']}/{top1['candidate_id']}",
+            }
+        )
+    write_csv(output_dir / "same_class_retrieval_scores.csv", score_rows)
+    write_csv(output_dir / "same_class_retrieval_metrics.csv", metrics_rows)
+
+
 def write_html_report(output_dir: Path, prediction_rows: List[dict], model: str, pool_path: Path) -> None:
     overall = list(csv.DictReader((output_dir / "overall_accuracy.csv").open()))
     buckets = list(csv.DictReader((output_dir / "bucket_accuracy.csv").open()))
     classes = list(csv.DictReader((output_dir / "per_class_accuracy.csv").open()))
     failed = list(csv.DictReader((output_dir / "failed_rows.csv").open())) if (output_dir / "failed_rows.csv").exists() else []
+    retrieval = (
+        list(csv.DictReader((output_dir / "same_class_retrieval_metrics.csv").open()))
+        if (output_dir / "same_class_retrieval_metrics.csv").exists()
+        else []
+    )
 
     def table(rows: Iterable[dict], cols: Sequence[str]) -> str:
         out = ["<table><thead><tr>"]
@@ -274,7 +376,7 @@ def write_html_report(output_dir: Path, prediction_rows: List[dict], model: str,
 <html lang="zh-CN">
 <head>
 <meta charset="utf-8">
-<title>GPT-5.5 Cross-Label Top1 Accuracy</title>
+<title>Cross-label and Same-class Retrieval from One VLM Score Pass</title>
 <style>
 body {{ font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif; margin:28px; color:#20242a; line-height:1.55; }}
 table {{ border-collapse:collapse; width:100%; margin:16px 0; }}
@@ -286,13 +388,13 @@ code {{ background:#f4f4f4; padding:1px 4px; border-radius:4px; }}
 </style>
 </head>
 <body>
-<h1>GPT-5.5 Cross-Label Top1 Accuracy</h1>
+<h1>Cross-label and Same-class Retrieval from One VLM Score Pass</h1>
 <div class="note">
 <h2>Experiment Design</h2>
-<p><b>Goal:</b> 让 GPT-5.5 对每个 candidate 在 6 个 tissue class 上同时打分，然后用最高分对应的 class 作为预测 label，计算分类准确率。</p>
+<p><b>Goal:</b> 对每个 candidate 在 6 个 tissue class 上同时打分。同一套分数同时用于两个实验：Test1 取最高分做 tissue classification；Test2 在同一 true class 内按对应 class score 排序，看 GOOD mask 能不能排到前面。</p>
 <p><b>Candidate pool:</b> 90 个 gray reverse blur candidate，6 个 true class 各 15 个。GOOD/MID/BAD 只用于抽样分组，不给模型看。</p>
-<p><b>Model inputs:</b> 每个 candidate 给两张图：H&amp;E crop 和 official FICTURE factor-color crop。mask 内清晰，mask 外灰色并模糊；没有蓝色 overlay。</p>
-<p><b>Model outputs:</b> GPT-5.5 返回 6 个整数 score：bronchiola、alveoli、vessels、tumor、stroma、immune_infiltration。外部脚本取最高分作为 predicted label。</p>
+<p><b>Model inputs:</b> 每个 candidate 给两张图：H&amp;E crop 和 official FICTURE color crop。mask 内清晰，mask 外灰色并模糊；没有蓝色 overlay。</p>
+<p><b>Model outputs:</b> VLM 返回 6 个整数 score：bronchiola、alveoli、vessels、tumor、stroma、immune_infiltration。</p>
 <p><b>Ground truth use:</b> true label、GOOD/MID/BAD、Dice/Precision/Recall 都对模型隐藏，只在 API 打分结束后用于评价。</p>
 <p><b>Official-data guardrail:</b> FICTURE 使用 PASS_OFFICIAL / same-ROI 数据，不使用 deprecated FICTURE roots。</p>
 <p><b>Model:</b> {html.escape(model)}</p>
@@ -308,6 +410,10 @@ code {{ background:#f4f4f4; padding:1px 4px; border-radius:4px; }}
 
 <h2>Accuracy By True Class</h2>
 {table(classes, ["true_class", "group", "n", "correct", "top1_accuracy"])}
+
+<h2>Test2: Same-class Candidate Retrieval</h2>
+<p>这里不再额外调用模型。对于每个 true class 的 15 个 candidate，直接用该 class 的 score 排序。例如 bronchiola 的 15 个 candidate 按 bronchiola score 排序。</p>
+{table(retrieval, ["target_class", "n_candidates", "top1_good", "good_in_top5", "unique_scores", "top1_bucket", "top1_score", "top1_candidate", "tie_warning"])}
 
 <h2>Prediction Preview</h2>
 {table(preview, score_cols)}
@@ -447,6 +553,13 @@ def main() -> None:
                 handle.write(json.dumps({"row_key": key, "parsed_json": parsed_json, "usage": usage}) + "\n")
             print(f"Scored {idx}/{len(rows)} true={true_class} pred={predicted or 'TIE'} correct={is_correct}", flush=True)
         except Exception as exc:
+            error_text = str(exc)
+            raw_error = ""
+            try:
+                error_payload = json.loads(error_text)
+                raw_error = str(error_payload.get("raw_response", ""))
+            except Exception:
+                raw_error = ""
             failed_rows = [old for old in failed_rows if old.get("row_key") != key]
             failed_rows.append(
                 {
@@ -455,10 +568,11 @@ def main() -> None:
                     "candidate_uid": row["candidate_uid"],
                     "true_label": row["label"],
                     "sample_bucket": row["sample_bucket"],
-                    "error": str(exc)[:2400],
+                    "error": error_text[:2400],
+                    "raw_response": raw_error[:2400],
                 }
             )
-            print(f"FAILED {idx}/{len(rows)} {key}: {str(exc)[:200]}", flush=True)
+            print(f"FAILED {idx}/{len(rows)} {key}: {error_text[:200]}", flush=True)
         prediction_rows = sorted(prediction_rows, key=lambda item: int(item["row_index"]))
         write_csv(pred_path, prediction_rows)
         cross_rows = [
@@ -473,11 +587,16 @@ def main() -> None:
             for pred in prediction_rows
         ]
         write_csv(cross_path, cross_rows)
-        write_csv(failed_path, failed_rows, fieldnames=["row_index", "row_key", "candidate_uid", "true_label", "sample_bucket", "error"])
+        write_csv(
+            failed_path,
+            failed_rows,
+            fieldnames=["row_index", "row_key", "candidate_uid", "true_label", "sample_bucket", "error", "raw_response"],
+        )
 
     if failed_rows:
         print(f"{len(failed_rows)} rows failed; rerun with --resume after fixing the issue.", flush=True)
     write_accuracy_tables(args.output_dir, prediction_rows)
+    write_same_class_retrieval_tables(args.output_dir, prediction_rows)
     write_html_report(args.output_dir, prediction_rows, args.model, args.pool_csv)
     print(args.output_dir, flush=True)
 

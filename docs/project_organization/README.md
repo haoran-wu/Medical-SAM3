@@ -40,7 +40,7 @@ codex-tma24-whole-image-prompts
 | Original/local data | `/Users/haoranwu/Desktop/Yan_Lab_Research/Medical-SAM3/data` | Local datasets | Do not track as a whole |
 | Model weights | `/Users/haoranwu/Desktop/Yan_Lab_Research/Medical-SAM3/checkpoints` | Large SAM/Medical-SAM3 checkpoints | Do not track |
 | Main local outputs | `/Users/haoranwu/Desktop/Yan_Lab_Research/Medical-SAM3/output` | Intermediate outputs, final reports, old experiments | Ignore by default; force-add only selected reports |
-| Older output folder | `/Users/haoranwu/Desktop/Yan_Lab_Research/Medical-SAM3/outputs` | Older/manual rendered outputs | Archive or leave local |
+| Older manual output archive | `/Users/haoranwu/Desktop/Yan_Lab_Research/Medical-SAM3/output/archive/legacy_manual_outputs_20260507` | Older/manual rendered outputs from May 7 | Historical archive |
 | Temporary files | `/Users/haoranwu/Desktop/Yan_Lab_Research/Medical-SAM3/tmp`, `__pycache__` | Runtime/debug files | Do not track |
 | Presentation files | `/Users/haoranwu/Desktop/Yan_Lab_Research/Presentation` | Final slide assets and lab decks | Keep outside repo unless intentionally copied |
 

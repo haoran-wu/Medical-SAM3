@@ -32,6 +32,7 @@ hpc*.py and dashboard launchers -> scripts/hpc_dashboard/
 make_group_meeting_ppt*.py -> scripts/presentation/
 CLAUDE.md -> docs/agent_notes/CLAUDE.md
 research_directions.md, resume_update_medical_sam3.md -> docs/archive/
+outputs/ -> output/archive/legacy_manual_outputs_20260507/
 ```
 
 ## What was intentionally not moved
@@ -43,11 +44,10 @@ separate review:
 checkpoints/
 data/
 output/
-outputs/
 results/
 ```
 
-Some of `outputs/` and `results/` are already tracked in Git, so moving them would
+Some of `output/` and `results/` are already tracked in Git, so moving them would
 create a larger structural change. They should be handled only if we decide to
 reorganize old historical outputs into a new tracked archive layout.
 

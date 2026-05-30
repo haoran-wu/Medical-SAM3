@@ -71,3 +71,14 @@ output/visium_hd_exp1/final_deliverables/May30_detailed_union_test1_test2_report
 5. Push to `origin`.
 6. Open a pull request only when the branch should be reviewed or merged.
 
+## Bouchet remote note
+
+Bouchet storage is documented separately in:
+
+```text
+docs/project_organization/REMOTE_BOUCHET_STORAGE.md
+```
+
+The important detail is that `/project` was full during cleanup. The remote `codex_*`
+folders were consolidated under `/home/hw646/Medical-SAM3_remote_runs/` with
+compatibility symlinks, but they are not physically inside `/project` yet.

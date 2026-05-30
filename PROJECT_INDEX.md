@@ -14,6 +14,7 @@ VLM evaluation.
 | `docs/project_organization/VISIUMHD_REPORT_MANIFEST.md` | Which reports are current, historical, or debug-only |
 | `docs/project_organization/CLEANUP_PLAN.md` | Conservative cleanup plan that avoids moving raw data |
 | `docs/project_organization/GIT_AND_REMOTE.md` | Git branch, GitHub remote, and tracking policy |
+| `docs/project_organization/REMOTE_BOUCHET_STORAGE.md` | Current Bouchet remote storage layout and cleanup status |
 | `output/visium_hd_exp1/final_deliverables/May30_detailed_union_test1_test2_report/index.html` | Main current HTML report |
 
 ## Current main storyline
@@ -90,4 +91,16 @@ Remote policy:
 - `upstream` is the original Medical-SAM3 repository: `AIM-Research-Lab/Medical-SAM3`.
 - Push active research and cleanup branches to `origin`.
 - Do not push large local data, checkpoints, or raw API artifacts.
+
+## Bouchet remote storage
+
+Remote Bouchet files are documented in:
+
+```text
+docs/project_organization/REMOTE_BOUCHET_STORAGE.md
+```
+
+The project filesystem was full during cleanup, so previous `/home/hw646/codex_*`
+folders were consolidated into one project-named home folder with compatibility
+symlinks. They should be moved into `/project` after project quota is freed.
 

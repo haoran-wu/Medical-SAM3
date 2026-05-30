@@ -1,0 +1,7 @@
+class,gt_component_count,important_component_count,important_components,best_single_source,best_single_Dice,best_single_Precision,best_single_Recall,single_best_recall_gap,component_candidates_known,important_components_with_usable_candidate,important_component_coverage_fraction,usable_component_list,recommend_component_assembly,reason
+bronchiola,3,3,"C1, C2, C3",FICTURE,0.758,0.868,0.674,True,True,3/3,1.0,"C1, C2, C3",Yes,"Multiple meaningful pieces, single-best recall is capped, and most pieces have usable candidates."
+alveoli,1,1,C1,HE,0.677,0.711,0.647,True,False,,,,No,GT does not have multiple meaningful pieces.
+vessels,7,2,"C1, C2",HE,0.628,0.822,0.507,True,True,2/2,1.0,"C1, C2",Yes,"Multiple meaningful pieces, single-best recall is capped, and most pieces have usable candidates."
+tumor,185,4,"C1, C2, C3, C4",FICTURE,0.527,0.366,0.946,False,True,3/4,0.75,"C1, C2, C4",Maybe,"GT has multiple pieces, but the best single mask is not clearly recall-limited."
+stroma,385,4,"C1, C2, C3, C4",FICTURE,0.528,0.371,0.911,False,True,3/4,0.75,"C2, C3, C4",Maybe,"GT has multiple pieces, but the best single mask is not clearly recall-limited."
+immune infiltration,163,4,"C1, C2, C3, C4",HE,0.301,0.337,0.273,False,True,4/4,1.0,"C1, C2, C3, C4",Maybe,"GT has multiple pieces, but the best single mask is not clearly recall-limited."

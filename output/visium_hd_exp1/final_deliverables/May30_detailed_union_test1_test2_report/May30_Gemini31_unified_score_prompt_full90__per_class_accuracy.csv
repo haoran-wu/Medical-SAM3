@@ -1,0 +1,7 @@
+group,n,correct,top1_accuracy,true_class
+bronchiola,15,10,0.666667,bronchiola
+alveoli,15,2,0.133333,alveoli
+vessels,15,10,0.666667,vessels
+tumor,15,9,0.600000,tumor
+stroma,15,1,0.066667,stroma
+immune infiltration,15,10,0.666667,immune_infiltration

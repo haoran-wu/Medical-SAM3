@@ -1,0 +1,7 @@
+target_class,display,n_candidates,top1_good,top1_bucket,good_in_top5,best_good_rank,unique_scores,top1_tie_size,tie_warning,top1_score,top1_candidate
+bronchiola,bronchiola,15,true,GOOD,3,1,8/15,1,,95,ficture/base_point64_m1536_p900/49
+alveoli,alveoli,15,true,GOOD,4,1,13/15,1,,85,he/base_box512_s160_m2048/29
+vessels,vessels,15,false,MID,3,3,8/15,2,,98,he/base_box256_s96_m1536/123
+tumor,tumor,15,false,MID,2,3,7/15,1,,94,he/base_box512_s160_m2048/11
+stroma,stroma,15,true,GOOD,1,1,10/15,1,,86,he/base_point64_m1024_p700/6
+immune_infiltration,immune infiltration,15,false,MID,3,3,10/15,2,,90,ficture/base_box128_s48_m1536/327

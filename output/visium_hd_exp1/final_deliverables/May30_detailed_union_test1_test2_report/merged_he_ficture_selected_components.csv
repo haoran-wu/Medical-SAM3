@@ -1,0 +1,11 @@
+class,component,source,setting,candidate,component_dice,component_precision,component_recall
+bronchiola,C1,FICTURE,base_official_points_step32,311,0.8927,0.8853,0.9003
+bronchiola,C2,FICTURE,medical_box192_s64_m2048,356,0.8407,0.8153,0.8678
+bronchiola,C3,HE,medical_official_points_step24,2646,0.9099,0.9543,0.8694
+vessels,C1,FICTURE,medical_box512_s160_m2048,38,0.9488,0.9709,0.9277
+vessels,C2,HE,base_box384_s128_m1536,59,0.8108,0.7061,0.9519
+vessels,C3,HE,medical_point80_m1024_p500,114,0.8871,0.8106,0.9795
+vessels,C4,not selected,not selected by quality gate,,,,
+vessels,C5,HE,medical_official_points_step24,3057,0.9313,0.9832,0.8845
+vessels,C6,FICTURE,base_point80_m1536_p700,83,0.7631,0.667,0.8915
+vessels,C7,not selected,not selected by quality gate,,,,

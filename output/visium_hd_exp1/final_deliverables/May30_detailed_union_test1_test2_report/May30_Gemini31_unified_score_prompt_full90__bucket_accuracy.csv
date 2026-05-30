@@ -1,0 +1,4 @@
+group,n,correct,top1_accuracy
+GOOD,30,17,0.566667
+MID,30,23,0.766667
+BAD,30,2,0.066667

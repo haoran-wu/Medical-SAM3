@@ -1,3 +1,19 @@
+## Haoran's current VisiumHD project
+
+This checkout is also being used for the current VisiumHD Exp1 research workflow:
+
+```text
+H&E + official FICTURE example
+-> H&E/FICTURE candidate mask pool
+-> component-aware union
+-> Test1 and Test2 VLM evaluation
+```
+
+Start from [`PROJECT_INDEX.md`](PROJECT_INDEX.md) for the current project map,
+main result, final report paths, cleanup policy, and Git/GitHub branch notes.
+
+The upstream Medical-SAM3 README starts below.
+
 <div align="center">
   
   <h1>🏥 Medical-SAM3</h1>

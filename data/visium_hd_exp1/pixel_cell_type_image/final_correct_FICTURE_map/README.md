@@ -6,8 +6,8 @@
 
 只使用这次 FICTURE 输出自己配套的文件：
 
-- source PNG: `pixel-level cell type image/visiumhd_exp1_hex12_k12/hex_12.k12.pixel.png`
-- source HTML: `pixel-level cell type image/visiumhd_exp1_hex12_k12/hex_12.k12.pixel.info.html`
+- source PNG: `data/visium_hd_exp1/pixel_cell_type_image/visiumhd_exp1_hex12_k12/hex_12.k12.pixel.png`
+- source HTML: `data/visium_hd_exp1/pixel_cell_type_image/visiumhd_exp1_hex12_k12/hex_12.k12.pixel.info.html`
 
 这里不放其他 HTML，也不放任何后来解释/推断出来的标签。
 

@@ -18,7 +18,7 @@ def main() -> None:
     parser.add_argument(
         "--info-tsv",
         type=Path,
-        default=Path("pixel-level cell type image/visiumhd_exp1_hex12_k12/hex_12.k12.pixel.info.tsv"),
+        default=Path("data/visium_hd_exp1/pixel_cell_type_image/visiumhd_exp1_hex12_k12/hex_12.k12.pixel.info.tsv"),
     )
     parser.add_argument(
         "--output-dir",

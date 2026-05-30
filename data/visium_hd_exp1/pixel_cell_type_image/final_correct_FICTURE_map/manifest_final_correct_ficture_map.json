@@ -4,8 +4,8 @@
   "ficture_map": "final_ficture_roi_3144x3327.png",
   "source_matched_html": "source_matched_factor_info.html",
   "factor_gene_table": "final_factor_color_gene_table_from_ficture_html.csv",
-  "source_png_original_location": "pixel-level cell type image/visiumhd_exp1_hex12_k12/hex_12.k12.pixel.png",
-  "source_html_original_location": "pixel-level cell type image/visiumhd_exp1_hex12_k12/hex_12.k12.pixel.info.html",
+  "source_png_original_location": "data/visium_hd_exp1/pixel_cell_type_image/visiumhd_exp1_hex12_k12/hex_12.k12.pixel.png",
+  "source_html_original_location": "data/visium_hd_exp1/pixel_cell_type_image/visiumhd_exp1_hex12_k12/hex_12.k12.pixel.info.html",
   "official_alignment_summary": "output/visium_hd_exp1/ficture_official_filtered_he_aligned/summary_official.json",
   "official_status": "PASS_OFFICIAL",
   "roi_bbox_xyxy_exclusive": [

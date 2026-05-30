@@ -4,7 +4,7 @@
 This uses the FICTURE pixel PNG as a factor-assignment grid, not as an image
 to paste. Factor colors are decoded from the accompanying ``*.info.tsv`` file,
 then grid coordinates are converted to H&E hires pixels using the spatula
-coordinate convention documented in ``pixel-level cell type image/Ficture.md``.
+coordinate convention documented in ``data/visium_hd_exp1/pixel_cell_type_image/Ficture.md``.
 """
 
 from __future__ import annotations
@@ -20,8 +20,8 @@ from scipy import ndimage as ndi
 
 
 PROJECT_ROOT = Path(__file__).resolve().parent.parent.parent
-DEFAULT_FICTURE_GRID = PROJECT_ROOT / "pixel-level cell type image" / "visiumhd_exp1_hex12_k12" / "hex_12.k12.pixel.png"
-DEFAULT_FACTOR_INFO = PROJECT_ROOT / "pixel-level cell type image" / "visiumhd_exp1_hex12_k12" / "hex_12.k12.pixel.info.tsv"
+DEFAULT_FICTURE_GRID = PROJECT_ROOT / "data/visium_hd_exp1/pixel_cell_type_image" / "visiumhd_exp1_hex12_k12" / "hex_12.k12.pixel.png"
+DEFAULT_FACTOR_INFO = PROJECT_ROOT / "data/visium_hd_exp1/pixel_cell_type_image" / "visiumhd_exp1_hex12_k12" / "hex_12.k12.pixel.info.tsv"
 DEFAULT_HE_IMAGE = PROJECT_ROOT / "output" / "visium_hd_exp1" / "assets" / "tissue_hires_image.png"
 DEFAULT_OUTPUT_DIR = PROJECT_ROOT / "output" / "visium_hd_exp1" / "ficture_molecular_he_overlay"
 

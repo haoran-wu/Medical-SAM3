@@ -39,8 +39,8 @@ The current example bundle is:
 examples/current_visium_hd_exp1/
 ```
 
-Older root-level `example1.jpg` and `example2.png` are legacy examples and are not
-the current main storyline.
+Older TMA24 and spatialLIBD examples now live under `examples/legacy_examples/`
+and are not the current main storyline.
 
 ## Step 2: Candidate pool
 

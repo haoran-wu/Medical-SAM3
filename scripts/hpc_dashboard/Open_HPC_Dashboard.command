@@ -12,7 +12,7 @@ is_up() {
 }
 
 if ! is_up; then
-  nohup /usr/bin/python3 -u "$ROOT/hpc_dashboard.py" \
+  nohup /usr/bin/python3 -u "$ROOT/scripts/hpc_dashboard/hpc_dashboard.py" \
     --port "$PORT" \
     --interval 20 \
     --history-hours "$HISTORY_HOURS" \

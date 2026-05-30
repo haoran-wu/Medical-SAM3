@@ -23,7 +23,7 @@ from PIL import Image, ImageDraw, ImageFilter, ImageFont
 
 PROJECT_ROOT = Path(__file__).resolve().parent.parent
 DEFAULT_CSV_PATH = PROJECT_ROOT / "data" / "tma24" / "TMA24.csv"
-DEFAULT_IMAGE_PATH = PROJECT_ROOT / "example1.jpg"
+DEFAULT_IMAGE_PATH = PROJECT_ROOT / "examples" / "legacy_examples" / "tma24" / "example1.jpg"
 DEFAULT_OUTPUT_DIR = PROJECT_ROOT / "output" / "00_FINAL_tma24_example1_scale_0p55_shiftX_neg120_shiftY_620"
 
 PALETTE: List[Tuple[int, int, int]] = [

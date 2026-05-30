@@ -59,8 +59,14 @@ The current main example is collected here:
 examples/current_visium_hd_exp1/
 ```
 
-Older root-level files `example1.jpg` and `example2.png` are legacy examples kept
-for old scripts. They are not the current VisiumHD storyline.
+Legacy examples were moved out of the root and now live under:
+
+```text
+examples/legacy_examples/
+```
+
+They are kept only for old scripts and smoke tests, not for the current VisiumHD
+storyline.
 
 ## Important source areas
 
@@ -70,6 +76,13 @@ for old scripts. They are not the current VisiumHD storyline.
 | `scripts/` | HPC submission scripts, report builders, helper scripts |
 | `docs/project_organization/` | Human-readable project map and cleanup policy |
 | `output/visium_hd_exp1/final_deliverables/` | Final and historical HTML/CSV/figure deliverables |
+
+## Root-level layout
+
+The root is intentionally kept small: README/index files plus source, docs,
+examples, scripts, and controlled data/output folders. Historical single-image
+examples, Kvasir demo data, HPC dashboard helpers, and presentation helpers now
+live in their own subfolders.
 
 ## Local-only areas
 

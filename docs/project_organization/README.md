@@ -69,8 +69,9 @@ The current example bundle is:
 /Users/haoranwu/Desktop/Yan_Lab_Research/Medical-SAM3/examples/current_visium_hd_exp1
 ```
 
-Older root-level `example1.jpg` and `example2.png` are legacy defaults for old scripts,
-not the current main story.
+Older TMA24, spatialLIBD, and Kvasir examples now live under
+`examples/legacy_examples/`, not in the repository root and not in the current
+main story.
 
 ## Main problem
 

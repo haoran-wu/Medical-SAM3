@@ -38,7 +38,7 @@ def ensure_ssh_ready() -> None:
     global SSH_READY
     if SSH_READY:
         return
-    check_script = THIS_FILE.parent / "scripts" / "hpc_ssh_check.sh"
+    check_script = THIS_FILE.parents[1] / "hpc_ssh_check.sh"
     if check_script.exists():
         subprocess.run(["bash", str(check_script)], check=True)
     SSH_READY = True

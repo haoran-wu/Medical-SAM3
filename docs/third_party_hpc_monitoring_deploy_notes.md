@@ -116,7 +116,7 @@ Why this is not enough here:
 
 For this project, the most practical path remains:
 
-1. Keep the local `hpc_dashboard.py` workflow.
+1. Keep the local `scripts/hpc_dashboard/hpc_dashboard.py` workflow.
 2. Continue improving the dashboard UX using Slurm-web as inspiration.
 3. Add user-level notifications directly in this repo, rather than trying to
    replace Slurm controller mail handling.

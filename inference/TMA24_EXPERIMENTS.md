@@ -13,7 +13,8 @@ python inference/run_tma24_left_to_right_transfer.py \
 ```
 
 Purpose: use prompts derived from one pseudo-mask region and evaluate only on a
-held-out region. This checks whether a prompt in one part of `example1.jpg`
+held-out region. This checks whether a prompt in one part of
+`examples/legacy_examples/tma24/example1.jpg`
 helps recover similar structures elsewhere, instead of merely segmenting the
 prompted area.
 
@@ -43,7 +44,8 @@ python inference/run_tma24_whole_image_prompts.py \
   --checkpoint checkpoints/Medical-SAM3/checkpoint.pt
 ```
 
-Purpose: run direct full-image recognition on `example1.jpg` with:
+Purpose: run direct full-image recognition on
+`examples/legacy_examples/tma24/example1.jpg` with:
 
 - whole-mask-derived box prompt
 - text prompt

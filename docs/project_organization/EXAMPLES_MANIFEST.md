@@ -35,15 +35,15 @@ output/visium_hd_exp1/final_deliverables/May30_detailed_union_test1_test2_report
 
 ## Legacy examples
 
-The following root-level files are old examples and are kept only because old scripts
-still use them as defaults:
+Old standalone examples now live under `examples/legacy_examples/`:
 
 | File | Status | Notes |
 |---|---|---|
-| `example1.jpg` | legacy | Older TMA24 / silicosis H&E example |
-| `example2.png` | legacy | Older spatialLIBD / prompt-inference example |
+| `examples/legacy_examples/tma24/example1.jpg` | legacy | Older TMA24 / silicosis H&E example |
+| `examples/legacy_examples/spatiallibd/example2.png` | legacy | Older spatialLIBD / prompt-inference example |
+| `examples/legacy_examples/kvasir_seg/Kvasir-SEG/` | legacy | Local Kvasir-SEG smoke-test data |
 
-Do not use `example1.jpg` or `example2.png` as the main VisiumHD project story.
+Do not use these legacy examples as the main VisiumHD project story.
 
 ## Rule going forward
 
@@ -53,4 +53,3 @@ When adding a new example:
 2. Add a README explaining what question the example answers.
 3. Update this manifest.
 4. Keep old examples marked as `legacy` instead of mixing them with the main result.
-

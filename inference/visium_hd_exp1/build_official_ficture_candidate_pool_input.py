@@ -18,7 +18,7 @@ DEFAULT_OFFICIAL_SUMMARY = DEFAULT_OFFICIAL_DIR / "summary_official.json"
 DEFAULT_HE = PROJECT_ROOT / "output" / "visium_hd_exp1" / "assets" / "tissue_hires_image.png"
 DEFAULT_FACTOR_INFO = (
     PROJECT_ROOT
-    / "pixel-level cell type image"
+    / "data/visium_hd_exp1/pixel_cell_type_image"
     / "visiumhd_exp1_hex12_k12"
     / "hex_12.k12.pixel.info.tsv"
 )

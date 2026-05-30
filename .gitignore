@@ -51,3 +51,6 @@ data/
 output/
 !data/tma24/
 !data/tma24/TMA24.csv
+!data/visium_hd_exp1/
+!data/visium_hd_exp1/pixel_cell_type_image/
+!data/visium_hd_exp1/pixel_cell_type_image/**

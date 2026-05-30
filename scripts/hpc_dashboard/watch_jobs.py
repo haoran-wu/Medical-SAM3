@@ -31,7 +31,7 @@ GRAY   = "\033[90m"
 def ssh(cmd: str) -> str:
     global SSH_READY
     if not SSH_READY:
-        check_script = Path(__file__).resolve().parent / "scripts" / "hpc_ssh_check.sh"
+        check_script = Path(__file__).resolve().parents[1] / "hpc_ssh_check.sh"
         if check_script.exists():
             subprocess.run(["bash", str(check_script)], check=True)
         SSH_READY = True

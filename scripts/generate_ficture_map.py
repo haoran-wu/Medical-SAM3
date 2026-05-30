@@ -8,7 +8,7 @@ map. The official filtered, H&E-aligned pipeline is:
     inference/visium_hd_exp1/render_official_filtered_ficture_he_map.py
 
 That official pipeline uses the filtered FICTURE PNG from
-``pixel-level cell type image/visiumhd_exp1_hex12_k12/hex_12.k12.pixel.png``,
+``data/visium_hd_exp1/pixel_cell_type_image/visiumhd_exp1_hex12_k12/hex_12.k12.pixel.png``,
 applies ``np.fliplr``, and maps with
 ``he_x = y_um / microns_per_pixel * tissue_hires_scalef`` and
 ``he_y = x_um / microns_per_pixel * tissue_hires_scalef``.

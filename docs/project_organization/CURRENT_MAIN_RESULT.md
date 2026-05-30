@@ -33,6 +33,15 @@ For VLM testing, the candidate is shown as a paired crop:
 
 The candidate region stays sharp and in color; outside context is grayscale and blurred.
 
+The current example bundle is:
+
+```text
+examples/current_visium_hd_exp1/
+```
+
+Older root-level `example1.jpg` and `example2.png` are legacy examples and are not
+the current main storyline.
+
 ## Step 2: Candidate pool
 
 The candidate pool contains SAM/Medical-SAM3 candidate masks generated from H&E and
@@ -114,4 +123,3 @@ Use this HTML as the main entrypoint:
 ```text
 /Users/haoranwu/Desktop/Yan_Lab_Research/Medical-SAM3/output/visium_hd_exp1/final_deliverables/May30_detailed_union_test1_test2_report/index.html
 ```
-

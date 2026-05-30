@@ -16,6 +16,8 @@ VLM evaluation.
 | `docs/project_organization/GIT_AND_REMOTE.md` | Git branch, GitHub remote, and tracking policy |
 | `docs/project_organization/REMOTE_BOUCHET_STORAGE.md` | Current Bouchet remote storage layout and cleanup status |
 | `docs/project_organization/LOCAL_STORAGE_CLEANUP.md` | Local cleanup actions and what was intentionally left in place |
+| `docs/project_organization/EXAMPLES_MANIFEST.md` | Current vs legacy examples |
+| `examples/current_visium_hd_exp1/` | Main example bundle for the current H&E + FICTURE storyline |
 | `output/visium_hd_exp1/final_deliverables/May30_detailed_union_test1_test2_report/index.html` | Main current HTML report |
 
 ## Current main storyline
@@ -48,6 +50,17 @@ It contains:
 - Test1 cross-label tissue classification results.
 - Test2 same-class candidate mask retrieval results.
 - Example prompts and plain-language experiment design.
+
+## Current example bundle
+
+The current main example is collected here:
+
+```text
+examples/current_visium_hd_exp1/
+```
+
+Older root-level files `example1.jpg` and `example2.png` are legacy examples kept
+for old scripts. They are not the current VisiumHD storyline.
 
 ## Important source areas
 

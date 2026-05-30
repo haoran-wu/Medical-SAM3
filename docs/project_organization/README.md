@@ -36,6 +36,7 @@ codex-tma24-whole-image-prompts
 | Core code | `/Users/haoranwu/Desktop/Yan_Lab_Research/Medical-SAM3/inference` | Python pipelines for SAM, FICTURE, CLIP, VLM, candidate assembly, and reports | Track |
 | HPC scripts | `/Users/haoranwu/Desktop/Yan_Lab_Research/Medical-SAM3/scripts` | Bouchet sbatch files and report helpers | Track |
 | Documentation | `/Users/haoranwu/Desktop/Yan_Lab_Research/Medical-SAM3/docs` | Project notes and experiment design | Track |
+| Examples | `/Users/haoranwu/Desktop/Yan_Lab_Research/Medical-SAM3/examples` | Current main example bundle plus legacy-example notes | Track |
 | Original/local data | `/Users/haoranwu/Desktop/Yan_Lab_Research/Medical-SAM3/data` | Local datasets | Do not track as a whole |
 | Model weights | `/Users/haoranwu/Desktop/Yan_Lab_Research/Medical-SAM3/checkpoints` | Large SAM/Medical-SAM3 checkpoints | Do not track |
 | Main local outputs | `/Users/haoranwu/Desktop/Yan_Lab_Research/Medical-SAM3/output` | Intermediate outputs, final reports, old experiments | Ignore by default; force-add only selected reports |
@@ -61,6 +62,15 @@ Use this story line:
 
 Everything else should be treated as supporting history, ablation, debugging, or
 archive unless it directly supports this pipeline.
+
+The current example bundle is:
+
+```text
+/Users/haoranwu/Desktop/Yan_Lab_Research/Medical-SAM3/examples/current_visium_hd_exp1
+```
+
+Older root-level `example1.jpg` and `example2.png` are legacy defaults for old scripts,
+not the current main story.
 
 ## Main problem
 

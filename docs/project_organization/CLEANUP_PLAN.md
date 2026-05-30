@@ -7,6 +7,7 @@ This plan is intentionally conservative. It avoids moving or deleting raw data.
 - Keep this `docs/project_organization` folder as the human-readable map.
 - Treat `VISIUMHD_REPORT_MANIFEST.md` as the current report index.
 - Treat `README.md` in this folder as the file-type guide.
+- Treat `LOCAL_STORAGE_CLEANUP.md` as the current local cleanup record.
 - Do not reorganize large folders until the manifest is accepted.
 - Treat the current main result as:
   `H&E + FICTURE example -> candidate pool -> component-aware union -> Test1/Test2`.
@@ -49,6 +50,12 @@ Do not track:
 - Raw API responses such as `api_responses.jsonl`.
 - API keys or local environment files.
 - Multi-GB intermediate masks or candidate pools.
+
+Already cleaned locally:
+
+- Removed generated `.DS_Store` and `__pycache__/` files.
+- Moved root-level `tmp/` to a local archive outside the repository.
+- Moved the old root-level group meeting PPTX into the Presentation archive.
 
 ## Phase 4: Safe cleanup commands to run later
 

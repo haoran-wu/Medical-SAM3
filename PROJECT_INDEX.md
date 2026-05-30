@@ -15,6 +15,7 @@ VLM evaluation.
 | `docs/project_organization/CLEANUP_PLAN.md` | Conservative cleanup plan that avoids moving raw data |
 | `docs/project_organization/GIT_AND_REMOTE.md` | Git branch, GitHub remote, and tracking policy |
 | `docs/project_organization/REMOTE_BOUCHET_STORAGE.md` | Current Bouchet remote storage layout and cleanup status |
+| `docs/project_organization/LOCAL_STORAGE_CLEANUP.md` | Local cleanup actions and what was intentionally left in place |
 | `output/visium_hd_exp1/final_deliverables/May30_detailed_union_test1_test2_report/index.html` | Main current HTML report |
 
 ## Current main storyline
@@ -71,6 +72,12 @@ These should not be committed wholesale:
 Selected small final reports can be force-added to Git when they are part of the
 research record.
 
+Local cleanup status is documented in:
+
+```text
+docs/project_organization/LOCAL_STORAGE_CLEANUP.md
+```
+
 ## Branches and remotes
 
 Current research branch:
@@ -103,4 +110,3 @@ docs/project_organization/REMOTE_BOUCHET_STORAGE.md
 The project filesystem was full during cleanup, so previous `/home/hw646/codex_*`
 folders were consolidated into one project-named home folder with compatibility
 symlinks. They should be moved into `/project` after project quota is freed.
-

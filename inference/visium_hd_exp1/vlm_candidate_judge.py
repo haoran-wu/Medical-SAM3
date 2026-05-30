@@ -16,6 +16,7 @@ import argparse
 import csv
 import json
 import math
+import os
 import re
 from dataclasses import dataclass
 from pathlib import Path
@@ -331,13 +332,30 @@ def load_vlm(model_name: str, device: str):
 
     processor = AutoProcessor.from_pretrained(model_name, trust_remote_code=True)
     dtype = torch.bfloat16 if device.startswith("cuda") else torch.float32
+    load_kwargs = {
+        "torch_dtype": dtype,
+        "trust_remote_code": True,
+        "low_cpu_mem_usage": True,
+    }
+    device_map = os.environ.get("VLM_DEVICE_MAP", "").strip()
+    if device_map:
+        load_kwargs["device_map"] = device_map
+        max_memory = {}
+        if cuda_mem := os.environ.get("VLM_MAX_MEMORY_CUDA"):
+            max_memory[0] = cuda_mem
+        if cpu_mem := os.environ.get("VLM_MAX_MEMORY_CPU"):
+            max_memory["cpu"] = cpu_mem
+        if max_memory:
+            load_kwargs["max_memory"] = max_memory
+        if offload_dir := os.environ.get("VLM_OFFLOAD_FOLDER"):
+            Path(offload_dir).mkdir(parents=True, exist_ok=True)
+            load_kwargs["offload_folder"] = offload_dir
     model = AutoModelForImageTextToText.from_pretrained(
         model_name,
-        torch_dtype=dtype,
-        trust_remote_code=True,
-        low_cpu_mem_usage=True,
+        **load_kwargs,
     )
-    model.to(device)
+    if not device_map:
+        model.to(device)
     model.eval()
     return processor, model
 

@@ -30,15 +30,27 @@ from scipy import ndimage as ndi
 LABEL_TO_MASK = {
     "lung_bronchiola": "01_lung_bronchiola_target_roi.png",
     "bronchiola": "01_lung_bronchiola_target_roi.png",
+    "lung_alveoli": "04_lung_alveoli_normal_adjacent_target_roi.png",
+    "alveoli": "04_lung_alveoli_normal_adjacent_target_roi.png",
     "lung_vessels": "05_lung_vessels_target_roi.png",
     "vessels": "05_lung_vessels_target_roi.png",
+    "tumor": "08_tumor_target_roi.png",
+    "stroma": "07_stroma_target_roi.png",
+    "immune_infiltration": "03_immune_infiltration_target_roi.png",
+    "immune infiltration": "03_immune_infiltration_target_roi.png",
 }
 
 DISPLAY_LABEL = {
     "lung_bronchiola": "bronchiola",
     "bronchiola": "bronchiola",
+    "lung_alveoli": "alveoli",
+    "alveoli": "alveoli",
     "lung_vessels": "vessels",
     "vessels": "vessels",
+    "tumor": "tumor",
+    "stroma": "stroma",
+    "immune_infiltration": "immune infiltration",
+    "immune infiltration": "immune infiltration",
 }
 
 COMPONENT_COLORS = [
@@ -132,6 +144,21 @@ def parse_args() -> argparse.Namespace:
         ),
     )
     parser.add_argument("--min-component-area", type=int, default=256)
+    parser.add_argument(
+        "--important-component-area-fraction",
+        type=float,
+        default=0.0,
+        help=(
+            "Only score components covering at least this fraction of the GT. "
+            "Default 0 keeps the historical behavior of scoring every kept component."
+        ),
+    )
+    parser.add_argument(
+        "--max-components-per-label",
+        type=int,
+        default=0,
+        help="Optional cap on scored components after sorting by area. 0 means no cap.",
+    )
     parser.add_argument("--top-k-per-component", type=int, default=5)
     parser.add_argument(
         "--max-candidates-per-root",
@@ -452,6 +479,11 @@ def main() -> None:
                     "component": f"C{component.component_id}",
                     "area_px": component.area,
                     "area_%_of_GT": f"{100 * component.area / total_area:.1f}",
+                    "scored_for_union": (
+                        component.area / total_area >= args.important_component_area_fraction
+                        if args.important_component_area_fraction > 0
+                        else True
+                    ),
                     "bbox_xyxy": f"{component.x0},{component.y0},{component.x1},{component.y1}",
                     "bbox_size": f"{component.width}x{component.height}",
                 }
@@ -476,18 +508,26 @@ def main() -> None:
         )
         generated_images[display] = [contact_path, component_only_path, he_overlay_path, ficture_overlay_path]
 
-        component_gt_masks = [component_map == component.component_id for component in components]
+        scored_components = [
+            component
+            for component in components
+            if args.important_component_area_fraction <= 0
+            or component.area / total_area >= args.important_component_area_fraction
+        ]
+        if args.max_components_per_label > 0:
+            scored_components = scored_components[: args.max_components_per_label]
+        component_gt_masks = [component_map == component.component_id for component in scored_components]
         component_gt_crops = [
             component_gt[component.y0 : component.y1, component.x0 : component.x1]
-            for component, component_gt in zip(components, component_gt_masks)
+            for component, component_gt in zip(scored_components, component_gt_masks)
         ]
 
         for source, root in candidate_roots:
             best_full: tuple[float, CandidateMask, dict[str, float]] | None = None
             per_component_top: list[list[tuple[float, CandidateMask, dict[str, float]]]] = [
-                [] for _ in components
+                [] for _ in scored_components
             ]
-            per_component_top1_masks: list[np.ndarray | None] = [None for _ in components]
+            per_component_top1_masks: list[np.ndarray | None] = [None for _ in scored_components]
             n_seen = 0
 
             for candidate in iter_candidate_masks(source, root, expected_size, args.max_candidates_per_root):
@@ -506,7 +546,7 @@ def main() -> None:
                     )
 
                 for idx, (component, component_gt_crop) in enumerate(
-                    zip(components, component_gt_crops)
+                    zip(scored_components, component_gt_crops)
                 ):
                     pred_crop = candidate.mask[component.y0 : component.y1, component.x0 : component.x1]
                     component_tp = int(pred_crop[component_gt_crop].sum())
@@ -524,7 +564,7 @@ def main() -> None:
             _, best_full_candidate, best_full_metrics = best_full
 
             selected_candidates: list[CandidateMask] = []
-            for idx, component in enumerate(components):
+            for idx, component in enumerate(scored_components):
                 ranked = per_component_top[idx]
                 if not ranked:
                     continue
@@ -560,10 +600,12 @@ def main() -> None:
                     "component_union_Dice": f"{union_m['dice']:.4f}",
                     "component_union_Precision": f"{union_m['precision']:.4f}",
                     "component_union_Recall": f"{union_m['recall']:.4f}",
-                    "n_components": len(components),
+                    "n_total_components": len(components),
+                    "n_scored_components": len(scored_components),
+                    "scored_component_ids": ", ".join(f"C{component.component_id}" for component in scored_components),
                     "selected_candidates": "; ".join(
-                        f"C{idx + 1}:{candidate.setting}/candidate_{candidate.candidate_id}"
-                        for idx, candidate in enumerate(selected_candidates)
+                        f"C{component.component_id}:{candidate.setting}/candidate_{candidate.candidate_id}"
+                        for component, candidate in zip(scored_components, selected_candidates)
                     ),
                     "single_best_candidate": f"{best_full_candidate.setting}/candidate_{best_full_candidate.candidate_id}",
                 }

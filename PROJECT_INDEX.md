@@ -67,6 +67,16 @@ to the crop images and official ROI assets. New VLM prompts should use
 `ficture_factor_prompt_legend_from_html.csv`, which is extracted from
 `source_matched_factor_info_with_llm_inferred_celltypes.html`.
 
+For the next final-mask Test1/Test2 run, use the union-aware six-class input table:
+
+```text
+data/visium_hd_exp1/current_ficture_vlm_inputs/final_union_test_inputs/final_test_requests.csv
+```
+
+This table sends bronchiola and vessels as merged component-union masks, alveoli
+as one single-best mask, and tumor/stroma/immune infiltration as the current
+precision-aware single-mask fallbacks.
+
 ## Current component-union policy
 
 Use this document for how to decide whether to union component candidates:

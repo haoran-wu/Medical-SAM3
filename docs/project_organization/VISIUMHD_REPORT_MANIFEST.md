@@ -24,6 +24,7 @@ prompt-ablation, pairwise, and smoke runs are supporting evidence or archive.
 | Primary | `/Users/haoranwu/Desktop/Yan_Lab_Research/Medical-SAM3/output/visium_hd_exp1/final_deliverables/May30_GPT55_unified_score_prompt_full90/index.html` | GPT-5.5 full 90-candidate API result |
 | Primary | `/Users/haoranwu/Desktop/Yan_Lab_Research/Medical-SAM3/output/visium_hd_exp1/final_deliverables/May30_Gemini31_unified_score_prompt_full90/index.html` | Gemini 3.1 full 90-candidate API result |
 | Primary | `/Users/haoranwu/Desktop/Yan_Lab_Research/Medical-SAM3/output/visium_hd_exp1/final_deliverables/May30_precision_gated_component_assembly/index.html` | Component-aware assembly source report and visualizations |
+| Primary | `/Users/haoranwu/Desktop/Yan_Lab_Research/Medical-SAM3/output/visium_hd_exp1/final_deliverables/Jun01_final_union_test_inputs_preview/index.html` | Six-class preview of final masks/crops to send to Test1/Test2 after applying union policy |
 | Primary | `/Users/haoranwu/Desktop/Yan_Lab_Research/Medical-SAM3/output/visium_hd_exp1/final_deliverables/May30_component_assembly_need_diagnostic_verified_maybe/index.html` | Decision logic for which classes should use component assembly |
 
 ## Historical reports worth keeping as archive

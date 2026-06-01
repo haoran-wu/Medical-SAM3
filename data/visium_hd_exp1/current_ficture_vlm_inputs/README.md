@@ -45,9 +45,19 @@ snapshot in one place so Test1 and Test2 do not depend on scattered files.
   Symlink to the H&E ROI aligned to the official FICTURE coverage.
 - `reverse_blur_pool_index.html`  
   Symlink to the visual index for the reverse-blur 90-candidate crop pool.
+- `final_union_test_inputs/`  
+  Six-class final-mask input bundle for the next Test1/Test2 runs. These are
+  the masks that should be sent to tests after applying the current union policy:
+  bronchiola uses the merged H&E+FICTURE component union, alveoli uses one
+  single-best mask, vessels uses the merged H&E+FICTURE component union, and
+  tumor/stroma/immune infiltration currently use precision-aware single-mask
+  fallbacks until their component-subset masks are locally available.
 
 ## Rules
 
+- New final-mask tests should use `final_union_test_inputs/final_test_requests.csv`,
+  not the original 90-row raw candidate pool, unless the goal is explicitly to
+  re-run the raw candidate-pool evaluation.
 - Keep RGB, Major Compartment, and cell type aligned to
   `source_matched_factor_info_with_llm_inferred_celltypes.html`.
 - Current runner defaults use `ficture_factor_prompt_legend_from_html.csv`, which

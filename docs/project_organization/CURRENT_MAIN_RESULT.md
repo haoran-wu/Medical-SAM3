@@ -137,6 +137,31 @@ The reusable policy is documented in:
 docs/project_organization/PRECISION_AWARE_COMPONENT_UNION.md
 ```
 
+For the next Test1/Test2 runs, the model should not receive raw single masks
+from the original pool when a final union mask exists. The current six-class
+test-input rule is:
+
+| Class | Final mask sent to tests |
+|---|---|
+| bronchiola | merged H&E + FICTURE component-aware union |
+| alveoli | one single-best mask |
+| vessels | merged H&E + FICTURE component-aware union |
+| tumor | precision-aware single-mask fallback until component subset is locally available |
+| stroma | precision-aware single-mask fallback until component subset is locally available |
+| immune infiltration | precision-aware single-mask fallback until component subset is locally available |
+
+The current preview bundle is:
+
+```text
+data/visium_hd_exp1/current_ficture_vlm_inputs/final_union_test_inputs/
+```
+
+The readable preview report is:
+
+```text
+output/visium_hd_exp1/final_deliverables/Jun01_final_union_test_inputs_preview/index.html
+```
+
 ## Step 4: Test1
 
 Test1 is called:

@@ -21,11 +21,16 @@ Official FICTURE aligned to H&E same ROI
 
 ## Compute rule
 
-All formal computation for this storyline should run on Bouchet or another
-approved remote compute environment unless Haoran explicitly asks for local
-execution. Local work is only for file organization, small inspections,
-script/prompt editing, and report or presentation packaging. Final reported
-metrics should come from remote runs.
+All formal computation for this storyline should run on Bouchet Slurm compute
+nodes unless Haoran explicitly asks for local execution. Do not run formal
+Python mask scans, metric recomputation, SAM/CLIP/VLM inference, or large report
+jobs on the Bouchet login node. The login node is only for `sbatch`, job/status
+checks, log inspection, and small file staging.
+
+Current candidate-pool rescans should use the Bouchet HE and official FICTURE
+candidate roots, not a small local exported subset, unless the user explicitly
+asks for a subset debug run. Final reported metrics should come from compute-node
+runs.
 
 See:
 

@@ -12,9 +12,10 @@ The main rule is: keep source code and small summary reports in GitHub; keep raw
 model checkpoints, API raw responses, and large experiment outputs local unless they are
 explicitly packaged for sharing.
 
-The compute rule is: run all formal computation on Bouchet or another approved
-remote compute environment unless Haoran explicitly asks for a local run. Local
-work is for organization, lightweight inspection, script/prompt editing, and
+The compute rule is: run all formal computation on Bouchet Slurm compute nodes
+unless Haoran explicitly asks for a local run. Do not run formal computation on
+the Bouchet login node. Local work and login-node work are for organization,
+lightweight inspection, job submission/status checks, script/prompt editing, and
 report or presentation packaging. See `COMPUTE_POLICY.md`.
 
 ## What is a branch?

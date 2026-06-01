@@ -40,10 +40,15 @@ story should start from the paired H&E/FICTURE candidate-pool pipeline.
 
 ## Compute policy
 
-Default rule: all formal computation runs on Bouchet or another approved remote
-compute environment unless Haoran explicitly asks for a local run. Local work is
-for organization, lightweight inspection, script/prompt editing, and report or
-presentation packaging. Final reported metrics should come from remote runs.
+Default rule: all formal computation runs on Bouchet Slurm compute nodes unless
+Haoran explicitly asks for a local run. Do not run Python mask scans, metric
+recomputation, SAM/CLIP/VLM inference, or report-scale batch processing on the
+Bouchet login node. Use the login node only for `sbatch`, job/status checks,
+small file checks, and data/script staging.
+
+Current candidate-pool rescans should use the Bouchet HE and official FICTURE
+candidate roots, not small local exported subsets, unless the user explicitly
+asks for a subset debug run.
 
 Full policy:
 

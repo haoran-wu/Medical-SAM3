@@ -11,18 +11,18 @@ This color legend applies only to Image 2, the FICTURE crop. It does not apply t
 The pink and purple colors in H&E are normal tissue staining, not FICTURE tumor colors.
 Major Compartment and cell type are marker-gene-inferred fields from source_matched_factor_info_with_llm_inferred_celltypes.html.
 
-Color 0: RGB 255,204,255; Major Compartment: Epithelial / Tumor Compartment; cell type: Lung Adenocarcinoma / Epithelial Tumor Cells.
-Color 1: RGB 0,255,255; Major Compartment: Stromal Compartment; cell type: Fibroblasts & Smooth Muscle Cells (Stromal / Mesenchymal).
-Color 2: RGB 255,255,0; Major Compartment: Epithelial / Tumor Compartment; cell type: Lung Epithelial / Tumor Subpopulation.
-Color 3: RGB 255,84,0; Major Compartment: Epithelial / Tumor Compartment; cell type: Alveolar Type II (AT2) Cells.
-Color 4: RGB 0,255,84; Major Compartment: Immune Compartment; cell type: T Cells & B Cells (Lymphocytes).
-Color 5: RGB 84,0,255; Major Compartment: Epithelial / Tumor Compartment; cell type: Lung Epithelial / Alveolar Substate.
-Color 6: RGB 170,0,170; Major Compartment: Immune Compartment; cell type: Macrophages / Monocytes (Myeloid Cells).
-Color 7: RGB 0,170,170; Major Compartment: Epithelial / Tumor Compartment; cell type: Airway Epithelial Cells (Club, Goblet, and Ciliated cells).
-Color 8: RGB 170,170,0; Major Compartment: Immune Compartment; cell type: Plasma Cells (IgG Dominant).
-Color 9: RGB 255,0,127; Major Compartment: Stromal Compartment; cell type: Endothelial Cells.
-Color 10: RGB 153,76,0; Major Compartment: Immune Compartment; cell type: Plasma Cells (IgA Dominant).
-Color 11: RGB 0,115,0; Major Compartment: Immune Compartment; cell type: Plasma Cells (IgM Dominant / Highly Active).
+Color 0: RGB (255, 204, 255); Major Compartment: Epithelial / Tumor Compartment; cell type: Lung Adenocarcinoma / Epithelial Tumor Cells.
+Color 1: RGB (0, 255, 255); Major Compartment: Stromal Compartment; cell type: Fibroblasts & Smooth Muscle Cells (Stromal / Mesenchymal).
+Color 2: RGB (255, 255, 0); Major Compartment: Epithelial / Tumor Compartment; cell type: Lung Epithelial / Tumor Subpopulation.
+Color 3: RGB (255, 84, 0); Major Compartment: Epithelial / Tumor Compartment; cell type: Alveolar Type II (AT2) Cells.
+Color 4: RGB (0, 255, 84); Major Compartment: Immune Compartment; cell type: T Cells & B Cells (Lymphocytes).
+Color 5: RGB (84, 0, 255); Major Compartment: Epithelial / Tumor Compartment; cell type: Lung Epithelial / Alveolar Substate.
+Color 6: RGB (170, 0, 170); Major Compartment: Immune Compartment; cell type: Macrophages / Monocytes (Myeloid Cells).
+Color 7: RGB (0, 170, 170); Major Compartment: Epithelial / Tumor Compartment; cell type: Airway Epithelial Cells (Club, Goblet, and Ciliated cells).
+Color 8: RGB (170, 170, 0); Major Compartment: Immune Compartment; cell type: Plasma Cells (IgG Dominant).
+Color 9: RGB (255, 0, 127); Major Compartment: Stromal Compartment; cell type: Endothelial Cells.
+Color 10: RGB (153, 76, 0); Major Compartment: Immune Compartment; cell type: Plasma Cells (IgA Dominant).
+Color 11: RGB (0, 115, 0); Major Compartment: Immune Compartment; cell type: Plasma Cells (IgM Dominant / Highly Active).
 
 Score how likely this candidate region belongs to each tissue class.
 

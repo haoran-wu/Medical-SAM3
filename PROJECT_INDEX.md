@@ -60,10 +60,10 @@ Use this folder as the clean input source for current Test1/Test2 reruns:
 data/visium_hd_exp1/current_ficture_vlm_inputs/
 ```
 
-It contains the source-matched FICTURE HTML legend, the CSV used to generate
+It contains the source-matched FICTURE HTML legend, the HTML-extracted CSV used to generate
 prompt factor lines, the 90-row gray reverse-blur candidate table, and symlinks
 to the crop images and official ROI assets. New VLM prompts should use
-`ficture_factor_legend_for_prompt.csv`, which is aligned to
+`ficture_factor_prompt_legend_from_html.csv`, which is extracted from
 `source_matched_factor_info_with_llm_inferred_celltypes.html`.
 
 ## Current example bundle

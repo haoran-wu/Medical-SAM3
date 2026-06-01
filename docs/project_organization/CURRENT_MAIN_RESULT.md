@@ -39,9 +39,9 @@ The clean input bundle for current VLM reruns is:
 data/visium_hd_exp1/current_ficture_vlm_inputs/
 ```
 
-It includes the source-matched FICTURE HTML legend, the CSV factor legend used in
-the prompt, the 90-row candidate crop table, and symlinks to the crop images. The
-prompt legend should stay aligned to
+It includes the source-matched FICTURE HTML legend, the HTML-extracted CSV factor
+legend used in the prompt, the 90-row candidate crop table, and symlinks to the
+crop images. The prompt legend should stay aligned to
 `source_matched_factor_info_with_llm_inferred_celltypes.html`.
 
 The current example bundle is:

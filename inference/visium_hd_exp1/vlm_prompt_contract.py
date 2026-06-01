@@ -12,7 +12,7 @@ from typing import List
 PROJECT_ROOT = Path(__file__).resolve().parent.parent.parent
 DEFAULT_INPUT_BUNDLE = PROJECT_ROOT / "data/visium_hd_exp1/current_ficture_vlm_inputs"
 DEFAULT_POOL_CSV = DEFAULT_INPUT_BUNDLE / "public_vlm_requests.csv"
-DEFAULT_FACTOR_LEGEND_CSV = DEFAULT_INPUT_BUNDLE / "ficture_factor_legend_for_prompt.csv"
+DEFAULT_FACTOR_LEGEND_CSV = DEFAULT_INPUT_BUNDLE / "ficture_factor_prompt_legend_from_html.csv"
 
 
 SYSTEM_PROMPT = (
@@ -23,11 +23,11 @@ SYSTEM_PROMPT = (
 )
 
 
-def _parse_rgb(text: str) -> str:
+def _parse_rgb_display(text: str) -> str:
     values = [int(value) for value in re.findall(r"\d+", text)[:3]]
     if len(values) != 3:
         raise ValueError(f"Could not parse RGB from {text!r}")
-    return ",".join(str(value) for value in values)
+    return f"({values[0]}, {values[1]}, {values[2]})"
 
 
 def load_factor_legend_rows(path: Path = DEFAULT_FACTOR_LEGEND_CSV) -> List[dict]:
@@ -39,9 +39,11 @@ def load_factor_legend_rows(path: Path = DEFAULT_FACTOR_LEGEND_CSV) -> List[dict
             rows.append(
                 {
                     "factor": int(row["Factor"]),
-                    "rgb": _parse_rgb(row["RGB"]),
+                    "rgb": _parse_rgb_display(row["RGB"]),
                     "major": row.get("Major Compartment", "").strip(),
-                    "cell_type": (row.get("Celltype2") or row.get("Celltype") or "").strip(),
+                    "cell_type": (
+                        row.get("cell type") or row.get("Celltype2") or row.get("Celltype") or ""
+                    ).strip(),
                 }
             )
     rows.sort(key=lambda item: item["factor"])

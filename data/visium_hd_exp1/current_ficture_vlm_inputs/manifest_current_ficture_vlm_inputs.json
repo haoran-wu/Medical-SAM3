@@ -7,12 +7,13 @@
   },
   "image_style": "gray reverse-blur paired H&E and FICTURE crops",
   "source_matched_ficture_html": "source_matched_factor_info_with_llm_inferred_celltypes.html",
-  "prompt_factor_legend_csv": "ficture_factor_legend_for_prompt.csv",
+  "prompt_factor_legend_csv": "ficture_factor_prompt_legend_from_html.csv",
+  "full_factor_legend_csv": "ficture_factor_legend_for_prompt.csv",
   "prompt_snapshot": "prompt_user_from_source_matched_ficture_legend.txt",
   "candidate_pool_csv": "public_vlm_requests.csv",
   "candidate_crops": "candidate_pair_crops",
   "evaluation_truth_csv": "hidden_candidate_truth.csv",
-  "prompt_legend_rule": "Generate RGB, Major Compartment, and cell type lines from ficture_factor_legend_for_prompt.csv. Do not hand-write or rewrite factor meanings.",
+  "prompt_legend_rule": "Generate RGB, Major Compartment, and cell type lines from ficture_factor_prompt_legend_from_html.csv, which is extracted directly from source_matched_factor_info_with_llm_inferred_celltypes.html. Do not hand-write or rewrite factor meanings.",
   "model_visibility_rule": "The model receives only paired crop images and prompt text. GOOD/MID/BAD and Dice/Precision/Recall are evaluation-only fields.",
   "tests": [
     {

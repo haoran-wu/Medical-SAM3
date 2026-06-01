@@ -17,6 +17,7 @@ VLM evaluation.
 | `docs/project_organization/REMOTE_BOUCHET_STORAGE.md` | Current Bouchet remote storage layout and cleanup status |
 | `docs/project_organization/LOCAL_STORAGE_CLEANUP.md` | Local cleanup actions and what was intentionally left in place |
 | `docs/project_organization/EXAMPLES_MANIFEST.md` | Current vs legacy examples |
+| `data/visium_hd_exp1/current_ficture_vlm_inputs/` | Clean current VLM input bundle: source-matched FICTURE legend, 90-row crop pool, prompt snapshot |
 | `examples/current_visium_hd_exp1/` | Main example bundle for the current H&E + FICTURE storyline |
 | `output/visium_hd_exp1/final_deliverables/May30_detailed_union_test1_test2_report/index.html` | Main current HTML report |
 
@@ -51,6 +52,20 @@ It contains:
 - Test2 same-class candidate mask retrieval results.
 - Example prompts and plain-language experiment design.
 
+## Current VLM input bundle
+
+Use this folder as the clean input source for current Test1/Test2 reruns:
+
+```text
+data/visium_hd_exp1/current_ficture_vlm_inputs/
+```
+
+It contains the source-matched FICTURE HTML legend, the CSV used to generate
+prompt factor lines, the 90-row gray reverse-blur candidate table, and symlinks
+to the crop images and official ROI assets. New VLM prompts should use
+`ficture_factor_legend_for_prompt.csv`, which is aligned to
+`source_matched_factor_info_with_llm_inferred_celltypes.html`.
+
 ## Current example bundle
 
 The current main example is collected here:
@@ -74,6 +89,7 @@ storyline.
 |---|---|
 | `inference/` | Main Python workflows and VisiumHD-specific scripts |
 | `scripts/` | HPC submission scripts, report builders, helper scripts |
+| `data/visium_hd_exp1/current_ficture_vlm_inputs/` | Clean current input bundle for VLM Test1/Test2 |
 | `docs/project_organization/` | Human-readable project map and cleanup policy |
 | `output/visium_hd_exp1/final_deliverables/` | Final and historical HTML/CSV/figure deliverables |
 

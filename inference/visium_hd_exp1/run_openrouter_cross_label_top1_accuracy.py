@@ -18,6 +18,7 @@ from pathlib import Path
 from typing import Dict, Iterable, List, Sequence, Tuple
 
 from run_openrouter_vlm_hit_test import image_data_url, write_csv
+from vlm_prompt_contract import DEFAULT_FACTOR_LEGEND_CSV, DEFAULT_POOL_CSV, SYSTEM_PROMPT, build_user_prompt
 
 
 CLASS_KEYS = [
@@ -46,59 +47,6 @@ CLASS_DISPLAY = {
     "stroma": "stroma",
     "immune_infiltration": "immune infiltration",
 }
-
-SYSTEM_PROMPT = (
-    "You are a careful pathology image classifier. "
-    "You will see two aligned crops of the same candidate region: H&E and FICTURE. "
-    "Score which tissue class the candidate region most likely belongs to. "
-    "Return only valid JSON."
-)
-
-USER_PROMPT = """You are given two aligned crops of the same candidate region:
-
-Image 1: H&E gray reverse-blur crop.
-The candidate region is sharp and full color; the outside region is grayscale and blurred.
-
-Image 2: official FICTURE gray reverse-blur crop.
-The candidate region is sharp and full color; the outside region is grayscale and blurred.
-
-The FICTURE colors use this legend:
-This color legend applies only to Image 2, the FICTURE crop. It does not apply to Image 1.
-The pink and purple colors in H&E are normal tissue staining, not FICTURE tumor colors.
-
-Color 0: RGB 255,204,255; Major Compartment: tumor-like epithelial / AT2-like malignant epithelial; cell type: tumor epithelial.
-Color 1: RGB 0,255,255; Major Compartment: vascular smooth muscle / myofibroblast / vessel wall stroma; cell type: smooth muscle vessel wall.
-Color 2: RGB 255,255,0; Major Compartment: epithelial tumor-like / mucinous-glandular epithelial; cell type: epithelial tumor-like.
-Color 3: RGB 255,84,0; Major Compartment: alveolar epithelial pneumocyte / AT2-like; cell type: alveolar epithelial.
-Color 4: RGB 0,255,84; Major Compartment: lymphoid immune with alveolar epithelial admixture; cell type: immune/alveolar mixed.
-Color 5: RGB 84,0,255; Major Compartment: alveolar epithelial pneumocyte / AT1-AT2-like; cell type: alveolar epithelial.
-Color 6: RGB 170,0,170; Major Compartment: SPP1/APOE macrophage; cell type: macrophage.
-Color 7: RGB 0,170,170; Major Compartment: bronchiolar secretory / club airway epithelium; cell type: bronchiolar secretory.
-Color 8: RGB 170,170,0; Major Compartment: plasma cell / B lineage; cell type: plasma cell.
-Color 9: RGB 255,0,127; Major Compartment: pulmonary neuroendocrine / airway basal-like rare epithelial; cell type: neuroendocrine airway.
-Color 10: RGB 153,76,0; Major Compartment: IgA plasma cell; cell type: IgA plasma cell.
-Color 11: RGB 0,115,0; Major Compartment: IgM plasma/B cell; cell type: IgM plasma cell.
-
-Score how likely this candidate region belongs to each tissue class.
-
-Tissue classes:
-bronchiola = bronchiolar airway tissue, airway-like lumen, epithelial lining.
-alveoli = alveolar lung parenchyma, open air spaces, thin septa.
-vessels = blood vessel or vascular wall, lumen-like vascular structure, smooth muscle vessel wall.
-tumor = malignant epithelial tumor region. Prefer tumor-like epithelial morphology and tumor epithelial FICTURE color support.
-stroma = stromal / mesenchymal tissue, collagen, fibroblast, smooth-muscle-like tissue. Treat stroma as a broad tissue compartment.
-immune_infiltration = immune-cell-rich region, small round-cell aggregates, macrophage / lymphoid / plasma-cell FICTURE color support.
-
-Rules:
-- Return exactly one JSON object.
-- Use exactly these six keys:
-  bronchiola, alveoli, vessels, tumor, stroma, immune_infiltration.
-- Each value must be an integer from 0 to 100.
-- Higher means more likely.
-- Use the full 0-100 range.
-- Do not include explanation, reason, precision, recall, Dice, markdown, code fences, or extra text.
-- Do not give all classes the same score unless there is truly no visible evidence."""
-
 
 def row_key(row: dict) -> Tuple[str, str, str, str, str]:
     return (row["label"], row["source"], row["run"], row["setting"], str(row["candidate_id"]))
@@ -161,6 +109,7 @@ def openrouter_cross_label_chat(
     model: str,
     he_data_url: str,
     ficture_data_url: str,
+    user_prompt: str,
     max_tokens: int,
     temperature: float,
     timeout: int,
@@ -175,7 +124,7 @@ def openrouter_cross_label_chat(
                 "content": [
                     {"type": "image_url", "image_url": {"url": he_data_url}},
                     {"type": "image_url", "image_url": {"url": ficture_data_url}},
-                    {"type": "text", "text": USER_PROMPT},
+                    {"type": "text", "text": user_prompt},
                 ],
             },
         ],
@@ -221,6 +170,7 @@ def safe_request(
     model: str,
     he_data_url: str,
     ficture_data_url: str,
+    user_prompt: str,
     max_tokens: int,
     temperature: float,
     timeout: int,
@@ -237,6 +187,7 @@ def safe_request(
                 model=model,
                 he_data_url=he_data_url,
                 ficture_data_url=ficture_data_url,
+                user_prompt=user_prompt,
                 max_tokens=max_tokens,
                 temperature=temperature,
                 timeout=timeout,
@@ -428,8 +379,9 @@ code {{ background:#f4f4f4; padding:1px 4px; border-radius:4px; }}
 
 def main() -> None:
     parser = argparse.ArgumentParser()
-    parser.add_argument("--pool-csv", type=Path, required=True)
+    parser.add_argument("--pool-csv", type=Path, default=DEFAULT_POOL_CSV)
     parser.add_argument("--output-dir", type=Path, required=True)
+    parser.add_argument("--factor-legend-csv", type=Path, default=DEFAULT_FACTOR_LEGEND_CSV)
     parser.add_argument("--model", default="openai/gpt-5.5")
     parser.add_argument("--api-key-env", default="OPENROUTER_API_KEY")
     parser.add_argument("--api-key-file", type=Path, default=Path(".openrouter_api_key"))
@@ -452,6 +404,7 @@ def main() -> None:
     if not api_key:
         raise SystemExit(f"Missing {args.api_key_env} and {args.api_key_file}")
 
+    user_prompt = build_user_prompt(args.factor_legend_csv)
     pool_dir = args.pool_csv.parent
     rows = list(csv.DictReader(args.pool_csv.open()))
     if args.limit:
@@ -468,11 +421,12 @@ def main() -> None:
 
     args.output_dir.mkdir(parents=True, exist_ok=True)
     (args.output_dir / "prompt_system.txt").write_text(SYSTEM_PROMPT)
-    (args.output_dir / "prompt_user.txt").write_text(USER_PROMPT)
+    (args.output_dir / "prompt_user.txt").write_text(user_prompt)
     (args.output_dir / "run_config.json").write_text(
         json.dumps(
             {
                 "pool_csv": str(args.pool_csv),
+                "factor_legend_csv": str(args.factor_legend_csv),
                 "model": args.model,
                 "temperature": args.temperature,
                 "max_tokens": args.max_tokens,
@@ -514,6 +468,7 @@ def main() -> None:
                 model=args.model,
                 he_data_url=he_url,
                 ficture_data_url=ficture_url,
+                user_prompt=user_prompt,
                 max_tokens=args.max_tokens,
                 temperature=args.temperature,
                 timeout=args.timeout,

@@ -47,10 +47,14 @@ inference/visualization/
 inference/*.ipynb
 
 # Local raw data and generated artifacts
-data/
+data/*
 output/
 !data/tma24/
 !data/tma24/TMA24.csv
 !data/visium_hd_exp1/
+data/visium_hd_exp1/*
 !data/visium_hd_exp1/pixel_cell_type_image/
 !data/visium_hd_exp1/pixel_cell_type_image/**
+!data/visium_hd_exp1/current_ficture_vlm_inputs/
+!data/visium_hd_exp1/current_ficture_vlm_inputs/**
+**/.DS_Store

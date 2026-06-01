@@ -74,8 +74,9 @@ data/visium_hd_exp1/current_ficture_vlm_inputs/final_union_test_inputs/final_tes
 ```
 
 This table sends bronchiola and vessels as merged component-union masks, alveoli
-as one single-best mask, and tumor/stroma/immune infiltration as the current
-precision-aware single-mask fallbacks.
+as one single-best mask, and tumor/stroma/immune infiltration as single-best
+plus precision-aware component-union masks when that combination improves both
+Precision and Recall over the single best.
 
 ## Current component-union policy
 

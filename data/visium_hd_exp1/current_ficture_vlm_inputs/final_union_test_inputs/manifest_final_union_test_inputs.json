@@ -4,7 +4,7 @@
     "width": 3144,
     "height": 3327
   },
-  "rule": "Tests use the final class mask: component-aware union where validated; otherwise the current single-mask fallback.",
+  "rule": "Tests use the final class mask: bronchiola/vessels merged component union, alveoli single best, and tumor/stroma/immune single-best plus precision-aware component union.",
   "data_out": "/Users/haoranwu/Desktop/Yan_Lab_Research/Medical-SAM3/data/visium_hd_exp1/current_ficture_vlm_inputs/final_union_test_inputs",
   "report_out": "/Users/haoranwu/Desktop/Yan_Lab_Research/Medical-SAM3/output/visium_hd_exp1/final_deliverables/Jun01_final_union_test_inputs_preview",
   "classes": [

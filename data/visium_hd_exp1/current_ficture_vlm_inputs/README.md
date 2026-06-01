@@ -50,8 +50,9 @@ snapshot in one place so Test1 and Test2 do not depend on scattered files.
   the masks that should be sent to tests after applying the current union policy:
   bronchiola uses the merged H&E+FICTURE component union, alveoli uses one
   single-best mask, vessels uses the merged H&E+FICTURE component union, and
-  tumor/stroma/immune infiltration currently use precision-aware single-mask
-  fallbacks until their component-subset masks are locally available.
+  tumor/stroma/immune infiltration use single-best plus precision-aware
+  component-union masks when the combination improves both Precision and Recall
+  over the single best.
 
 ## Rules
 

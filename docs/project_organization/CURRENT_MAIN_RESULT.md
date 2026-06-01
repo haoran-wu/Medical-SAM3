@@ -146,9 +146,9 @@ test-input rule is:
 | bronchiola | merged H&E + FICTURE component-aware union |
 | alveoli | one single-best mask |
 | vessels | merged H&E + FICTURE component-aware union |
-| tumor | precision-aware single-mask fallback until component subset is locally available |
-| stroma | precision-aware single-mask fallback until component subset is locally available |
-| immune infiltration | precision-aware single-mask fallback until component subset is locally available |
+| tumor | FICTURE single best + FICTURE precision-aware component union |
+| stroma | FICTURE single best + HE precision-aware component union |
+| immune infiltration | HE single best + HE precision-aware component union |
 
 The current preview bundle is:
 

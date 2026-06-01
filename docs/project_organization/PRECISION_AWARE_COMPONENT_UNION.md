@@ -34,7 +34,7 @@ union, not a full component recovery.
 | vessels | Component-aware recovery with precision gates | Several meaningful pieces; single-best mask is recall-limited. |
 | tumor | Precision-aware subset selection | Many components; best single already has high recall but low Precision. |
 | stroma | Precision-aware subset selection | Broad fragmented tissue; adding every piece risks many false positives. |
-| immune infiltration | Precision-aware subset selection | Many small clusters; candidate quality is weak, so only high-confidence clusters should be kept. |
+| immune infiltration | Recall-push subset selection with Precision floor | Many small clusters; use the full candidate pool to recover more real clusters, but keep a Precision floor so noisy pieces do not dominate. |
 
 ## Selection Rule
 
@@ -70,10 +70,22 @@ truth:
 | tumor/stroma | 0.55 | 0.60 | 0.02 | improve or preserve Precision first |
 | immune infiltration | 0.45 | 0.55 | 0.02 | keep only cleaner immune clusters |
 
-The reusable implementation is:
+For immune infiltration, the current reported mask uses a full-pool scan on
+Bouchet rather than the older local top-k subset:
+
+```text
+HE pool: 15,899 masks
+FICTURE pool: 15,571 masks
+Selection: top40 annotation components, rank<=25 candidate rows, recall-push rule
+Result: Dice 0.509, Precision 0.438, Recall 0.607
+```
+
+The reusable implementations are:
 
 ```text
 inference/visium_hd_exp1/componentwise_candidate_assembly.py
+inference/visium_hd_exp1/stream_component_candidate_oracle.py
+inference/visium_hd_exp1/search_recall_boost_from_component_candidates.py
 ```
 
 Current policy presets:

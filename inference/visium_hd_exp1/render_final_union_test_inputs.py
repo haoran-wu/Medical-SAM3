@@ -113,20 +113,17 @@ FINAL_INPUTS = [
     ),
     FinalClassInput(
         tissue_class="immune_infiltration",
-        test_mask_rule="single best + precision-aware component union",
-        source="HE single + HE component union + one FICTURE recall-boost component",
+        test_mask_rule="full-pool recall-push component union",
+        source="HE+FICTURE full-pool top40/rank25 union",
         mask_paths=(
-            MAY22_DIR / "01_HE_same_ROI_candidate_pool_best/best_candidate_masks/06_immune_infiltration_best_candidate_mask.png",
-            MAY30_MAYBE_DIR
-            / "May30_official_same_roi_maybe_validation_immune_infiltration/immune_infiltration/immune infiltration_HE_component_union_mask.png",
             SOURCE_COMPONENT_DIR
-            / "immune_infiltration_recall_boost_ficture_C2_rank02_medical_box160_s64_m1536_candidate_247.png",
+            / "immune_infiltration_fullpool_top40_rank25_recall_push_union_mask.png",
         ),
-        dice=0.4415,
-        precision=0.4309,
-        recall=0.4526,
-        note="Use the HE single best plus clean HE component-union pieces, then add one FICTURE C2 component that raises Recall with only a small Precision drop.",
-        single_best_check="Best single mask: HE P/R 0.337/0.273 -> final union P/R 0.431/0.453.",
+        dice=0.5089,
+        precision=0.4382,
+        recall=0.6069,
+        note="Use a full Bouchet HE+FICTURE candidate-pool scan, then keep top40 annotation components and rank<=25 candidates under a recall-push rule; this improves Recall and also slightly improves Precision versus the previous union.",
+        single_best_check="Best single mask: HE P/R 0.337/0.273 -> previous union P/R 0.431/0.453 -> full-pool union P/R 0.438/0.607.",
     ),
 ]
 
@@ -364,7 +361,7 @@ img {{ border: 1px solid #ddd; vertical-align: top; }}
 </head>
 <body>
 <h1>Final mask inputs sent to tests</h1>
-<p class="note">后续 Test1/Test2 不再直接用原始单块 pool。每个 tissue class 先确定一个最终候选 mask：bronchiola/vessels 用已验证的 merged component union；alveoli 用单个 best mask；tumor/stroma/immune infiltration 用 single-best + precision-aware component union，因为这三类组合后 Precision 和 Recall 都不低于原来的 single-best。</p>
+<p class="note">后续 Test1/Test2 不再直接用原始单块 pool。每个 tissue class 先确定一个最终候选 mask：bronchiola/vessels 用已验证的 merged component union；alveoli 用单个 best mask；tumor/stroma 用 single-best + precision-aware component union；immune infiltration 用 Bouchet 全 HE+FICTURE 候选池扫描后的 top40/rank25 recall-push union。</p>
 <p><img class="overview" src="{overview_rel}"></p>
 <table><thead><tr>{table_head}</tr></thead><tbody>{''.join(table_rows)}</tbody></table>
 {''.join(class_sections)}
@@ -467,7 +464,7 @@ def main() -> None:
             {
                 "status": "preview_current_final_test_inputs",
                 "roi_size": {"width": expected_size[0], "height": expected_size[1]},
-                "rule": "Tests use the final class mask: bronchiola/vessels merged component union, alveoli single best, tumor/stroma single-best plus precision-aware component union, and immune single-best plus HE component union plus one FICTURE C2 recall-boost component.",
+                "rule": "Tests use the final class mask: bronchiola/vessels merged component union, alveoli single best, tumor/stroma single-best plus precision-aware component union, and immune infiltration full-pool top40/rank25 recall-push union from Bouchet HE+FICTURE candidate pools.",
                 "data_out": str(data_out),
                 "report_out": str(report_out),
                 "classes": [row["class"] for row in rows],

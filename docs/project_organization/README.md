@@ -32,7 +32,7 @@ A Git branch is a separate working line of the same project.
 The current active branch is:
 
 ```text
-codex-tma24-whole-image-prompts
+codex/cleanup-project-structure
 ```
 
 ## Current repository map
@@ -62,7 +62,11 @@ Use this story line:
 3. Show paired H&E/FICTURE crop examples for each candidate.
 4. Use component-aware union to show that multiple disconnected tissue pieces can
    be assembled from candidate masks.
-5. Run two VLM tests on the paired H&E/FICTURE candidate crops:
+5. Package final union-aware test inputs from the current mask policy:
+   bronchiola/vessels use component-aware union, alveoli uses one single best,
+   tumor/stroma use precision-aware union, and immune infiltration uses the
+   Bouchet full-pool HE+FICTURE top40/rank25 recall-push union.
+6. Run two VLM tests on the paired H&E/FICTURE candidate crops:
    - Test1: Cross-Label Tissue Classification.
    - Test2: Same-Class Candidate Mask Retrieval.
 

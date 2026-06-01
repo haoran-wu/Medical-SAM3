@@ -93,11 +93,11 @@ data/visium_hd_exp1/current_ficture_vlm_inputs/final_union_test_inputs/final_tes
 ```
 
 This table sends bronchiola and vessels as merged component-union masks, alveoli
-as one single-best mask, and tumor/stroma/immune infiltration as single-best
-plus precision-aware component-union masks when that combination improves both
-Precision and Recall over the single best. Immune infiltration also includes one
-extra FICTURE C2 recall-boost component because it raises Recall with only a
-small Precision drop versus the previous union.
+as one single-best mask, tumor/stroma as single-best plus precision-aware
+component-union masks, and immune infiltration as a full-pool HE+FICTURE
+top40/rank25 recall-push union from Bouchet. The immune union is based on
+rescanning the full Bouchet HE/FICTURE candidate pools, not the older 80-mask
+local component subset.
 
 ## Current component-union policy
 
@@ -111,6 +111,9 @@ Bronchiola and vessels use component-aware union to recover disconnected pieces.
 Tumor, stroma, and immune infiltration should use precision-aware subset selection:
 do not union every connected component just because it exists; only keep candidate
 components that improve or preserve final Precision while giving useful Recall.
+For reported full-pool searches, run the scan on Bouchet compute nodes and use
+the canonical HE/FICTURE candidate-pool roots documented in
+`docs/project_organization/COMPUTE_POLICY.md`.
 
 ## Current example bundle
 

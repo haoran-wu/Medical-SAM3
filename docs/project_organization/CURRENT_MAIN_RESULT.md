@@ -167,13 +167,19 @@ test-input rule is:
 | vessels | merged H&E + FICTURE component-aware union |
 | tumor | FICTURE single best + FICTURE precision-aware component union |
 | stroma | FICTURE single best + HE precision-aware component union |
-| immune infiltration | HE single best + HE precision-aware component union + one FICTURE C2 recall-boost component |
+| immune infiltration | full-pool HE + FICTURE top40/rank25 recall-push union |
 
 The current preview bundle is:
 
 ```text
 data/visium_hd_exp1/current_ficture_vlm_inputs/final_union_test_inputs/
 ```
+
+For immune infiltration, the current final mask is no longer the older 80-mask
+component subset. It comes from a full Bouchet candidate-pool component scan over
+15,899 H&E masks and 15,571 official FICTURE masks, followed by a top40/rank25
+recall-push union. This raised the final immune infiltration Recall from 0.453
+to 0.607 while also slightly improving Precision from 0.431 to 0.438.
 
 The readable preview report is:
 

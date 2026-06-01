@@ -49,11 +49,10 @@ snapshot in one place so Test1 and Test2 do not depend on scattered files.
   Six-class final-mask input bundle for the next Test1/Test2 runs. These are
   the masks that should be sent to tests after applying the current union policy:
   bronchiola uses the merged H&E+FICTURE component union, alveoli uses one
-  single-best mask, vessels uses the merged H&E+FICTURE component union, and
-  tumor/stroma/immune infiltration use single-best plus precision-aware
-  component-union masks when the combination improves both Precision and Recall
-  over the single best. Immune infiltration additionally keeps one FICTURE C2
-  recall-boost component selected from the component-level candidate search.
+  single-best mask, vessels uses the merged H&E+FICTURE component union,
+  tumor/stroma use single-best plus precision-aware component-union masks, and
+  immune infiltration uses the Bouchet full-pool HE+FICTURE top40/rank25
+  recall-push union.
 
 ## Rules
 
@@ -68,5 +67,8 @@ snapshot in one place so Test1 and Test2 do not depend on scattered files.
   row-level `prompt_text` fields from earlier pool CSVs for new tests.
 - `sample_bucket` is allowed in `public_vlm_requests.csv` only for evaluation
   after scoring. It is not included in the prompt.
+- Full-pool mask rescans and reported metric recomputation must run on Bouchet
+  Slurm compute nodes. Local files in this folder are packaged inputs/previews
+  copied back from those remote runs.
 - Future GPT/OpenRouter and local VLM runs should use this folder as the default
   input bundle.

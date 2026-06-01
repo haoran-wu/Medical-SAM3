@@ -11,13 +11,51 @@ VLMs can understand and rank the candidate masks.
 ## Main pipeline
 
 ```text
-Same ROI H&E + official FICTURE
+Official FICTURE aligned to H&E same ROI
   -> candidate mask pool
   -> paired H&E/FICTURE candidate crop examples
-  -> component-aware union
+  -> component-aware / precision-aware union
   -> Test1: Cross-Label Tissue Classification
   -> Test2: Same-Class Candidate Mask Retrieval
 ```
+
+## Step 0: Official FICTURE to H&E alignment
+
+All current FICTURE-dependent results must come from the official filtered
+FICTURE map and the same H&E ROI. The current aligned map is not a manual visual
+shift. It uses:
+
+- source: filtered FICTURE pixel image `hex_12.k12.pixel.png`.
+- orientation: `fliplr(raw filtered PNG)`.
+- coordinate mapping: convert FICTURE 2 micron pixel coordinates into H&E hires
+  pixels using `microns_per_pixel = 0.2737554241192739` and
+  `tissue_hires_scalef = 0.13752006`.
+- no manual dx/dy shift.
+- official crop bbox: `[75, 40, 3219, 3367]`.
+- ROI size: `3144 x 3327`.
+- status check: `output/visium_hd_exp1/ficture_official_filtered_he_aligned/summary_official.json`
+  must say `PASS_OFFICIAL`.
+
+The source-matched FICTURE legend and prompt inputs are collected here:
+
+```text
+data/visium_hd_exp1/current_ficture_vlm_inputs/
+```
+
+For VLM prompts, the FICTURE color legend must be generated from:
+
+```text
+data/visium_hd_exp1/current_ficture_vlm_inputs/ficture_factor_prompt_legend_from_html.csv
+```
+
+That file is extracted directly from:
+
+```text
+data/visium_hd_exp1/current_ficture_vlm_inputs/source_matched_factor_info_with_llm_inferred_celltypes.html
+```
+
+So the prompt uses the same `RGB`, `Major Compartment`, and `cell type` shown in
+the source-matched HTML.
 
 ## Step 1: H&E + FICTURE paired example
 
@@ -76,6 +114,28 @@ Current headline results:
 
 - bronchiola merged H&E + FICTURE union: Dice 0.887, Precision 0.881, Recall 0.892.
 - vessels merged H&E + FICTURE union: Dice 0.891, Precision 0.855, Recall 0.930.
+
+For tumor, stroma, and immune infiltration, the policy is different. These
+annotations can have many connected components, but that does not mean every
+piece should be unioned. The goal is not "recover every small component"; the
+goal is to build a final mask with better Precision while keeping useful Recall.
+
+Use precision-aware subset selection:
+
+1. Start from important components only, such as the largest components that
+   cover most of the annotation.
+2. For each component, test candidate masks from the H&E and official FICTURE
+   pools.
+3. Add a candidate only if its new pixels have high enough Precision and the
+   final union does not lose too much Precision.
+4. Stop when adding more components no longer improves the precision-weighted
+   score.
+
+The reusable policy is documented in:
+
+```text
+docs/project_organization/PRECISION_AWARE_COMPONENT_UNION.md
+```
 
 ## Step 4: Test1
 

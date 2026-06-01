@@ -11,6 +11,7 @@ VLM evaluation.
 | File or folder | Purpose |
 |---|---|
 | `docs/project_organization/CURRENT_MAIN_RESULT.md` | Short explanation of the current main result and storyline |
+| `docs/project_organization/PRECISION_AWARE_COMPONENT_UNION.md` | Component-union policy, including precision-aware selection for tumor/stroma/immune |
 | `docs/project_organization/VISIUMHD_REPORT_MANIFEST.md` | Which reports are current, historical, or debug-only |
 | `docs/project_organization/CLEANUP_PLAN.md` | Conservative cleanup plan that avoids moving raw data |
 | `docs/project_organization/GIT_AND_REMOTE.md` | Git branch, GitHub remote, and tracking policy |
@@ -24,10 +25,10 @@ VLM evaluation.
 ## Current main storyline
 
 ```text
-Same ROI H&E + official FICTURE
+Official FICTURE aligned to H&E same ROI
   -> build H&E/FICTURE candidate mask pool
   -> show paired candidate crops
-  -> component-aware union for disconnected tissue pieces
+  -> component-aware / precision-aware union
   -> Test1: Cross-Label Tissue Classification
   -> Test2: Same-Class Candidate Mask Retrieval
 ```
@@ -65,6 +66,19 @@ prompt factor lines, the 90-row gray reverse-blur candidate table, and symlinks
 to the crop images and official ROI assets. New VLM prompts should use
 `ficture_factor_prompt_legend_from_html.csv`, which is extracted from
 `source_matched_factor_info_with_llm_inferred_celltypes.html`.
+
+## Current component-union policy
+
+Use this document for how to decide whether to union component candidates:
+
+```text
+docs/project_organization/PRECISION_AWARE_COMPONENT_UNION.md
+```
+
+Bronchiola and vessels use component-aware union to recover disconnected pieces.
+Tumor, stroma, and immune infiltration should use precision-aware subset selection:
+do not union every connected component just because it exists; only keep candidate
+components that improve or preserve final Precision while giving useful Recall.
 
 ## Current example bundle
 

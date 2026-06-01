@@ -4,7 +4,8 @@
 This is the second step after `componentwise_candidate_oracle.py`.
 The oracle scan tells us which candidates can cover each disconnected GT
 component. This script tests a practical assembly rule: keep only reliable
-component candidates, avoid redundant overlaps, then union the selected masks.
+component candidates, avoid redundant overlaps, require clean newly added pixels,
+then union the selected masks.
 
 The current input ranking can be oracle-derived for method development. The
 same selector can later consume VLM / FICTURE ranked candidates as long as the
@@ -26,7 +27,12 @@ from PIL import Image, ImageDraw, ImageFont
 
 LABEL_TO_MASK = {
     "bronchiola": "01_lung_bronchiola_target_roi.png",
+    "alveoli": "04_lung_alveoli_normal_adjacent_target_roi.png",
     "vessels": "05_lung_vessels_target_roi.png",
+    "tumor": "08_tumor_target_roi.png",
+    "stroma": "07_stroma_target_roi.png",
+    "immune_infiltration": "03_immune_infiltration_target_roi.png",
+    "immune infiltration": "03_immune_infiltration_target_roi.png",
 }
 
 POLICY_PRESETS = {
@@ -35,18 +41,40 @@ POLICY_PRESETS = {
         "min_component_dice": 0.50,
         "min_recall": 0.0,
         "max_overlap": 0.40,
+        "min_incremental_precision": 0.70,
+        "max_precision_drop": 0.03,
     },
     "balanced": {
         "min_precision": 0.50,
         "min_component_dice": 0.45,
         "min_recall": 0.0,
         "max_overlap": 0.50,
+        "min_incremental_precision": 0.50,
+        "max_precision_drop": 0.05,
+    },
+    "precision_broad_tissue": {
+        "min_precision": 0.55,
+        "min_component_dice": 0.25,
+        "min_recall": 0.0,
+        "max_overlap": 0.50,
+        "min_incremental_precision": 0.60,
+        "max_precision_drop": 0.02,
+    },
+    "precision_immune": {
+        "min_precision": 0.45,
+        "min_component_dice": 0.15,
+        "min_recall": 0.0,
+        "max_overlap": 0.60,
+        "min_incremental_precision": 0.55,
+        "max_precision_drop": 0.02,
     },
     "recall_oracle_all": {
         "min_precision": 0.0,
         "min_component_dice": 0.0,
         "min_recall": 0.0,
         "max_overlap": 1.00,
+        "min_incremental_precision": 0.0,
+        "max_precision_drop": 1.0,
     },
 }
 
@@ -58,6 +86,8 @@ class SelectionPolicy:
     min_component_dice: float
     min_recall: float
     max_overlap: float
+    min_incremental_precision: float
+    max_precision_drop: float
 
 
 def parse_args() -> argparse.Namespace:
@@ -97,7 +127,8 @@ def parse_args() -> argparse.Namespace:
         default=[],
         help=(
             "Policy preset name or custom name:min_precision:min_component_dice:"
-            "min_recall:max_overlap. May be used multiple times."
+            "min_recall:max_overlap[:min_incremental_precision:max_precision_drop]. "
+            "May be used multiple times."
         ),
     )
     parser.add_argument(
@@ -118,11 +149,17 @@ def parse_policies(entries: list[str]) -> list[SelectionPolicy]:
             policies.append(SelectionPolicy(entry, **params))
             continue
         parts = entry.split(":")
-        if len(parts) != 5:
+        if len(parts) not in {5, 7}:
             raise ValueError(
-                "--policy must be a preset or name:min_precision:min_component_dice:min_recall:max_overlap"
+                "--policy must be a preset or "
+                "name:min_precision:min_component_dice:min_recall:max_overlap"
+                "[:min_incremental_precision:max_precision_drop]"
             )
         name, min_precision, min_component_dice, min_recall, max_overlap = parts
+        min_incremental_precision = "0.0"
+        max_precision_drop = "1.0"
+        if len(parts) == 7:
+            min_incremental_precision, max_precision_drop = parts[5:]
         policies.append(
             SelectionPolicy(
                 name=name,
@@ -130,6 +167,8 @@ def parse_policies(entries: list[str]) -> list[SelectionPolicy]:
                 min_component_dice=float(min_component_dice),
                 min_recall=float(min_recall),
                 max_overlap=float(max_overlap),
+                min_incremental_precision=float(min_incremental_precision),
+                max_precision_drop=float(max_precision_drop),
             )
         )
     return policies
@@ -166,6 +205,15 @@ def candidate_overlap(candidate: np.ndarray, selected_union: np.ndarray) -> floa
     if area == 0:
         return 0.0
     return float(np.logical_and(candidate, selected_union).sum() / area)
+
+
+def incremental_precision(candidate: np.ndarray, selected_union: np.ndarray, gt: np.ndarray) -> float:
+    new_pixels = np.logical_and(candidate, ~selected_union)
+    new_area = int(new_pixels.sum())
+    if new_area == 0:
+        return 0.0
+    new_tp = int(np.logical_and(new_pixels, gt).sum())
+    return float(new_tp / new_area)
 
 
 def union_overlay(base: Image.Image, gt: np.ndarray, pred: np.ndarray, title: str) -> Image.Image:
@@ -231,6 +279,7 @@ def select_for_group(
     group: pd.DataFrame,
     policy: SelectionPolicy,
     expected_size: tuple[int, int],
+    gt: np.ndarray,
 ) -> tuple[list[dict[str, object]], np.ndarray]:
     selected_rows: list[dict[str, object]] = []
     selected_union = np.zeros((expected_size[1], expected_size[0]), dtype=bool)
@@ -256,7 +305,15 @@ def select_for_group(
             overlap = candidate_overlap(mask, selected_union)
             if overlap > policy.max_overlap:
                 continue
-            selected_union |= mask
+            inc_precision = incremental_precision(mask, selected_union, gt)
+            if inc_precision < policy.min_incremental_precision:
+                continue
+            before = metrics(selected_union, gt)
+            proposed_union = np.logical_or(selected_union, mask)
+            after = metrics(proposed_union, gt)
+            if before["pred_area"] > 0 and after["precision"] < before["precision"] - policy.max_precision_drop:
+                continue
+            selected_union = proposed_union
             accepted = {
                 "component": component,
                 "rank": int(row["rank"]),
@@ -264,6 +321,9 @@ def select_for_group(
                 "precision_vs_component": precision,
                 "recall_vs_component": recall,
                 "overlap_with_selected": overlap,
+                "incremental_precision": inc_precision,
+                "union_precision_after": after["precision"],
+                "union_recall_after": after["recall"],
                 "setting": row["setting"],
                 "candidate": row["candidate"],
                 "mask_path": row["mask_path"],
@@ -278,6 +338,9 @@ def select_for_group(
                 "precision_vs_component": "",
                 "recall_vs_component": "",
                 "overlap_with_selected": "",
+                "incremental_precision": "",
+                "union_precision_after": "",
+                "union_recall_after": "",
                 "setting": "SKIPPED_BY_GATE",
                 "candidate": "",
                 "mask_path": "",
@@ -331,7 +394,7 @@ figcaption {{ font-size: 12px; color: #4b5563; margin-top: 4px; }}
 </head>
 <body>
 <h1>Component-wise candidate assembly</h1>
-<p class="note">这个实验把 disconnected annotation 当成多个小组件处理：先用 component-level candidate ranking 找每一块的候选，再通过 Precision / Dice gate 过滤低可信候选，最后把通过 gate 的候选 mask union 成最终预测。当前 ranking 是 oracle-derived，用来验证这个拼接策略的上限和阈值选择；同一个 selector 后续可以接 VLM 或 FICTURE score。</p>
+    <p class="note">这个实验把 disconnected annotation 当成多个小组件处理：先用 component-level candidate ranking 找每一块的候选，再通过 Precision / Dice / incremental Precision gate 过滤低可信候选，最后把通过 gate 的候选 mask union 成最终预测。对于 tumor、stroma、immune infiltration 这类碎片多的 broad class，目标不是把所有连通块都收进来，而是只收能保持或提高最终 Precision 的候选。当前 ranking 是 oracle-derived，用来验证这个拼接策略的上限和阈值选择；同一个 selector 后续可以接 VLM 或 FICTURE score。</p>
 
 <h2>Assembly summary</h2>
 {simple_table(summary_rows)}
@@ -369,7 +432,7 @@ def main() -> None:
             if group.empty:
                 continue
             for policy in policies:
-                selected, union_mask = select_for_group(group, policy, expected_size)
+                selected, union_mask = select_for_group(group, policy, expected_size, gt)
                 m = metrics(union_mask, gt)
                 selected_kept = [row for row in selected if row.get("_mask") is not None]
                 summary_rows.append(
@@ -384,6 +447,8 @@ def main() -> None:
                         "min_precision": policy.min_precision,
                         "min_component_dice": policy.min_component_dice,
                         "max_overlap": policy.max_overlap,
+                        "min_incremental_precision": policy.min_incremental_precision,
+                        "max_precision_drop": policy.max_precision_drop,
                     }
                 )
                 for row in selected:

@@ -8,9 +8,9 @@ project. It is a guide for what to cite, present, keep, archive, or avoid commit
 The main result is:
 
 ```text
-H&E + official FICTURE example
+official FICTURE aligned to H&E same ROI
 -> build H&E/FICTURE candidate pool
--> component-aware union
+-> component-aware / precision-aware union
 -> Test1 and Test2 VLM evaluation
 ```
 
@@ -65,7 +65,8 @@ Use this order for slides and reports:
 
 1. Start from the concrete H&E + FICTURE paired example in the same ROI.
 2. Build the H&E/FICTURE candidate mask pool.
-3. Use component-aware union to show why one mask is not enough for disconnected structures.
+3. Use component-aware union for bronchiola/vessels, and precision-aware subset
+   selection for tumor/stroma/immune where taking every component can hurt Precision.
 4. Run Test1: Cross-Label Tissue Classification, asking whether VLMs recognize tissue type.
 5. Run Test2: Same-Class Candidate Mask Retrieval, asking whether VLMs can rank better masks higher.
 6. Limitations: stroma and immune infiltration remain hard because candidate quality and label structure are weaker.
@@ -73,5 +74,5 @@ Use this order for slides and reports:
 Short version:
 
 ```text
-example -> candidate pool -> union -> Test1 -> Test2
+official alignment -> example -> candidate pool -> union -> Test1 -> Test2
 ```

@@ -27,7 +27,8 @@ snapshot in one place so Test1 and Test2 do not depend on scattered files.
   This is kept for traceability, but current prompt text is generated from the
   smaller HTML-extracted file above.
 - `prompt_user_from_source_matched_ficture_legend.txt`  
-  Current user prompt snapshot generated from `ficture_factor_legend_for_prompt.csv`.
+  Current user prompt snapshot generated from
+  `ficture_factor_prompt_legend_from_html.csv`.
 - `public_vlm_requests.csv`  
   Clean 90-row candidate input table. It keeps crop paths and evaluation grouping,
   but removes legacy prompt columns so old factor descriptions cannot leak into

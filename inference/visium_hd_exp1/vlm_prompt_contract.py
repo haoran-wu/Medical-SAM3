@@ -59,7 +59,7 @@ def build_ficture_legend_text(path: Path = DEFAULT_FACTOR_LEGEND_CSV) -> str:
     lines = []
     for row in load_factor_legend_rows(path):
         lines.append(
-            "Color {factor}: RGB {rgb}; Major Compartment: {major}; cell type: {cell_type}.".format(**row)
+            "Color {factor}: RGB {rgb}; compartment: {major}; cell type: {cell_type}.".format(**row)
         )
     return "\n".join(lines)
 
@@ -71,13 +71,10 @@ def build_user_prompt(path: Path = DEFAULT_FACTOR_LEGEND_CSV) -> str:
 Image 1: H&E gray reverse-blur crop.
 The candidate region is sharp and full color; the outside region is grayscale and blurred.
 
-Image 2: official FICTURE gray reverse-blur crop.
+Image 2: FICTURE gray reverse-blur crop.
 The candidate region is sharp and full color; the outside region is grayscale and blurred.
 
-The FICTURE colors use this source-matched legend:
-This color legend applies only to Image 2, the FICTURE crop. It does not apply to Image 1.
-The pink and purple colors in H&E are normal tissue staining, not FICTURE tumor colors.
-Major Compartment and cell type are marker-gene-inferred fields from source_matched_factor_info_with_llm_inferred_celltypes.html.
+FICTURE color legend for Image 2:
 
 {legend}
 
@@ -98,5 +95,6 @@ Rules:
 - Each value must be an integer from 0 to 100.
 - Higher means more likely.
 - Use the full 0-100 range.
-- Do not include explanation, reason, precision, recall, Dice, markdown, code fences, or extra text.
-- Do not give all classes the same score unless there is truly no visible evidence."""
+- Do not include explanation, markdown, code fences, or extra text.
+- Do not give all classes the same score unless there is truly no visible evidence.
+"""

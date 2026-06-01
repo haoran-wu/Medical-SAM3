@@ -11,6 +11,7 @@ VLM evaluation.
 | File or folder | Purpose |
 |---|---|
 | `docs/project_organization/CURRENT_MAIN_RESULT.md` | Short explanation of the current main result and storyline |
+| `docs/project_organization/COMPUTE_POLICY.md` | Remote-first compute rule: all formal computation runs on Bouchet unless explicitly requested otherwise |
 | `docs/project_organization/PRECISION_AWARE_COMPONENT_UNION.md` | Component-union policy, including precision-aware selection for tumor/stroma/immune |
 | `docs/project_organization/VISIUMHD_REPORT_MANIFEST.md` | Which reports are current, historical, or debug-only |
 | `docs/project_organization/CLEANUP_PLAN.md` | Conservative cleanup plan that avoids moving raw data |
@@ -36,6 +37,19 @@ Official FICTURE aligned to H&E same ROI
 The current main result is not the older CLIP-only or smoke-test workflow. Those
 older runs are useful as supporting evidence and archive, but the presentation
 story should start from the paired H&E/FICTURE candidate-pool pipeline.
+
+## Compute policy
+
+Default rule: all formal computation runs on Bouchet or another approved remote
+compute environment unless Haoran explicitly asks for a local run. Local work is
+for organization, lightweight inspection, script/prompt editing, and report or
+presentation packaging. Final reported metrics should come from remote runs.
+
+Full policy:
+
+```text
+docs/project_organization/COMPUTE_POLICY.md
+```
 
 ## Current primary deliverable
 

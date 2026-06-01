@@ -19,6 +19,20 @@ Official FICTURE aligned to H&E same ROI
   -> Test2: Same-Class Candidate Mask Retrieval
 ```
 
+## Compute rule
+
+All formal computation for this storyline should run on Bouchet or another
+approved remote compute environment unless Haoran explicitly asks for local
+execution. Local work is only for file organization, small inspections,
+script/prompt editing, and report or presentation packaging. Final reported
+metrics should come from remote runs.
+
+See:
+
+```text
+docs/project_organization/COMPUTE_POLICY.md
+```
+
 ## Step 0: Official FICTURE to H&E alignment
 
 All current FICTURE-dependent results must come from the official filtered

@@ -123,11 +123,11 @@ def row_id(row: pd.Series) -> str:
 
 def greedy_search(
     rows: list[dict[str, object]],
-    masks: dict[str, np.ndarray],
     current: np.ndarray,
     gt: np.ndarray,
     baseline: dict[str, float],
     policy: Policy,
+    expected_size: tuple[int, int],
 ) -> tuple[list[dict[str, object]], np.ndarray, dict[str, float]]:
     selected: list[dict[str, object]] = []
     union = current.copy()
@@ -138,14 +138,15 @@ def greedy_search(
             rid = str(row["row_id"])
             if rid in used:
                 continue
-            stats = candidate_stats(masks[rid], union, gt)
+            candidate = load_mask(Path(str(row["mask_path"])), expected_size=expected_size)
+            stats = candidate_stats(candidate, union, gt)
             if stats["delta_recall"] < policy.min_delta_recall:
                 continue
             if stats["incremental_precision"] < policy.min_incremental_precision:
                 continue
             if stats["new_precision"] < baseline["precision"] - policy.max_precision_drop:
                 continue
-            proposed = np.logical_or(union, masks[rid])
+            proposed = np.logical_or(union, candidate)
             score = (
                 stats["delta_recall"] * max(stats["incremental_precision"], 1e-6)
                 + 0.10 * max(stats["delta_dice"], 0.0)
@@ -173,7 +174,6 @@ def main() -> None:
         raise ValueError(f"No component candidates in {args.component_candidates}")
 
     rows: list[dict[str, object]] = []
-    masks: dict[str, np.ndarray] = {}
     seen_paths: set[str] = set()
     for _, row in df.iterrows():
         path = Path(str(row["mask_path"]))
@@ -183,16 +183,14 @@ def main() -> None:
             continue
         rid = row_id(row)
         seen_paths.add(str(path))
-        mask = load_mask(path, expected_size=expected_size)
-        masks[rid] = mask
         clean = row.to_dict()
         clean["row_id"] = rid
         rows.append(clean)
 
     one_add_rows: list[dict[str, object]] = []
     for row in rows:
-        rid = str(row["row_id"])
-        stats = candidate_stats(masks[rid], current, gt)
+        candidate = load_mask(Path(str(row["mask_path"])), expected_size=expected_size)
+        stats = candidate_stats(candidate, current, gt)
         one_add_rows.append({**row, **stats})
     one_add_rows.sort(
         key=lambda item: (
@@ -220,7 +218,7 @@ def main() -> None:
     all_selected: list[dict[str, object]] = []
     he_image = Image.open(args.he_image).convert("RGB") if args.he_image else None
     for policy in POLICIES:
-        selected, union, final_m = greedy_search(rows, masks, current, gt, baseline, policy)
+        selected, union, final_m = greedy_search(rows, current, gt, baseline, policy, expected_size)
         save_mask(union, args.out_dir / f"{policy.name}_union_mask.png")
         if he_image is not None:
             overlay(

@@ -148,7 +148,7 @@ test-input rule is:
 | vessels | merged H&E + FICTURE component-aware union |
 | tumor | FICTURE single best + FICTURE precision-aware component union |
 | stroma | FICTURE single best + HE precision-aware component union |
-| immune infiltration | HE single best + HE precision-aware component union |
+| immune infiltration | HE single best + HE precision-aware component union + one FICTURE C2 recall-boost component |
 
 The current preview bundle is:
 

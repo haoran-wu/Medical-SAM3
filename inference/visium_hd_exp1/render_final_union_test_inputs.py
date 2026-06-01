@@ -28,6 +28,7 @@ MAY30_UNION_DIR = PROJECT_ROOT / "output/visium_hd_exp1/final_deliverables/May30
 MAY30_MAYBE_DIR = PROJECT_ROOT / "output/visium_hd_exp1/final_deliverables/May30_maybe_component_validation_remote"
 DEFAULT_DATA_OUT = PROJECT_ROOT / "data/visium_hd_exp1/current_ficture_vlm_inputs/final_union_test_inputs"
 DEFAULT_REPORT_OUT = PROJECT_ROOT / "output/visium_hd_exp1/final_deliverables/Jun01_final_union_test_inputs_preview"
+SOURCE_COMPONENT_DIR = DEFAULT_DATA_OUT / "source_component_masks"
 
 
 @dataclass(frozen=True)
@@ -113,17 +114,19 @@ FINAL_INPUTS = [
     FinalClassInput(
         tissue_class="immune_infiltration",
         test_mask_rule="single best + precision-aware component union",
-        source="HE single + HE component union",
+        source="HE single + HE component union + one FICTURE recall-boost component",
         mask_paths=(
             MAY22_DIR / "01_HE_same_ROI_candidate_pool_best/best_candidate_masks/06_immune_infiltration_best_candidate_mask.png",
             MAY30_MAYBE_DIR
             / "May30_official_same_roi_maybe_validation_immune_infiltration/immune_infiltration/immune infiltration_HE_component_union_mask.png",
+            SOURCE_COMPONENT_DIR
+            / "immune_infiltration_recall_boost_ficture_C2_rank02_medical_box160_s64_m1536_candidate_247.png",
         ),
-        dice=0.4376,
-        precision=0.4359,
-        recall=0.4394,
-        note="Use the HE single best plus clean HE component-union pieces; this improves both Precision and Recall over the HE single best.",
-        single_best_check="Best single mask: HE P/R 0.337/0.273 -> final union P/R 0.436/0.439.",
+        dice=0.4415,
+        precision=0.4309,
+        recall=0.4526,
+        note="Use the HE single best plus clean HE component-union pieces, then add one FICTURE C2 component that raises Recall with only a small Precision drop.",
+        single_best_check="Best single mask: HE P/R 0.337/0.273 -> final union P/R 0.431/0.453.",
     ),
 ]
 
@@ -464,7 +467,7 @@ def main() -> None:
             {
                 "status": "preview_current_final_test_inputs",
                 "roi_size": {"width": expected_size[0], "height": expected_size[1]},
-                "rule": "Tests use the final class mask: bronchiola/vessels merged component union, alveoli single best, and tumor/stroma/immune single-best plus precision-aware component union.",
+                "rule": "Tests use the final class mask: bronchiola/vessels merged component union, alveoli single best, tumor/stroma single-best plus precision-aware component union, and immune single-best plus HE component union plus one FICTURE C2 recall-boost component.",
                 "data_out": str(data_out),
                 "report_out": str(report_out),
                 "classes": [row["class"] for row in rows],

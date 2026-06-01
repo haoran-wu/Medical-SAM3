@@ -52,7 +52,8 @@ snapshot in one place so Test1 and Test2 do not depend on scattered files.
   single-best mask, vessels uses the merged H&E+FICTURE component union, and
   tumor/stroma/immune infiltration use single-best plus precision-aware
   component-union masks when the combination improves both Precision and Recall
-  over the single best.
+  over the single best. Immune infiltration additionally keeps one FICTURE C2
+  recall-boost component selected from the component-level candidate search.
 
 ## Rules
 

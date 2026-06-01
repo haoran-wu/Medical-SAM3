@@ -76,7 +76,9 @@ data/visium_hd_exp1/current_ficture_vlm_inputs/final_union_test_inputs/final_tes
 This table sends bronchiola and vessels as merged component-union masks, alveoli
 as one single-best mask, and tumor/stroma/immune infiltration as single-best
 plus precision-aware component-union masks when that combination improves both
-Precision and Recall over the single best.
+Precision and Recall over the single best. Immune infiltration also includes one
+extra FICTURE C2 recall-boost component because it raises Recall with only a
+small Precision drop versus the previous union.
 
 ## Current component-union policy
 

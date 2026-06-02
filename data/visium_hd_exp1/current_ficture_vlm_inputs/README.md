@@ -72,3 +72,31 @@ snapshot in one place so Test1 and Test2 do not depend on scattered files.
   copied back from those remote runs.
 - Future GPT/OpenRouter and local VLM runs should use this folder as the default
   input bundle.
+
+## How The 90-Row GOOD/MID/BAD Pool Was Sampled
+
+The 90-row pool is a controlled VLM sanity-test pool, not the final six-class
+union input. It has 6 tissue classes x 15 candidates per class:
+
+- 5 `GOOD`: same-class candidates with the highest hidden Dice.
+- 5 `MID`: same-class candidates closest to the same-class median hidden Dice.
+- 5 `BAD`: candidates that were good enough for another class but have the
+  lowest hidden Dice for the current target class.
+
+The bucket labels and Dice/Precision/Recall values are hidden from the model and
+used only after scoring. The exact sampling code is:
+
+```text
+inference/visium_hd_exp1/build_paired_vlm_hit_test_pool.py
+```
+
+The current hidden Dice ranges are:
+
+| Class | GOOD Dice range | MID Dice range | BAD Dice range |
+|---|---:|---:|---:|
+| bronchiola | 0.753-0.758 | 0.364-0.378 | 0.000 |
+| alveoli | 0.604-0.677 | 0.214-0.227 | 0.000 |
+| vessels | 0.608-0.627 | 0.337-0.421 | 0.000 |
+| tumor | 0.513-0.527 | 0.192-0.203 | 0.000 |
+| stroma | 0.522-0.528 | 0.115-0.124 | 0.000 |
+| immune infiltration | 0.270-0.297 | 0.149-0.151 | 0.000 |

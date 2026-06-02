@@ -158,16 +158,16 @@ docs/project_organization/PRECISION_AWARE_COMPONENT_UNION.md
 
 For the next Test1/Test2 runs, the model should not receive raw single masks
 from the original pool when a final union mask exists. The current six-class
-test-input rule is:
+test-input rule and metrics are:
 
-| Class | Final mask sent to tests |
-|---|---|
-| bronchiola | merged H&E + FICTURE component-aware union |
-| alveoli | one single-best mask |
-| vessels | merged H&E + FICTURE component-aware union |
-| tumor | FICTURE single best + FICTURE precision-aware component union |
-| stroma | FICTURE single best + HE precision-aware component union |
-| immune infiltration | full-pool HE + FICTURE top40/rank25 recall-push union |
+| Class | Final mask sent to tests | Dice | Precision | Recall |
+|---|---|---:|---:|---:|
+| bronchiola | merged H&E + FICTURE component-aware union | 0.887 | 0.881 | 0.892 |
+| alveoli | one single-best H&E mask | 0.677 | 0.711 | 0.647 |
+| vessels | merged H&E + FICTURE component-aware union | 0.891 | 0.855 | 0.930 |
+| tumor | FICTURE single best + FICTURE precision-aware component union | 0.529 | 0.366 | 0.951 |
+| stroma | FICTURE single best + HE precision-aware component union | 0.534 | 0.372 | 0.946 |
+| immune infiltration | full-pool HE + FICTURE top40/rank25 recall-push union | 0.509 | 0.438 | 0.607 |
 
 The current preview bundle is:
 
@@ -186,6 +186,45 @@ The readable preview report is:
 ```text
 output/visium_hd_exp1/final_deliverables/Jun01_final_union_test_inputs_preview/index.html
 ```
+
+## Raw 90-candidate VLM hit-test pool
+
+The old 90-row small pool is still useful for controlled VLM sanity checks, but
+it is not the final six-mask union input above.
+
+It contains 6 tissue classes x 15 candidates per class:
+
+- 5 `GOOD` candidates.
+- 5 `MID` candidates.
+- 5 `BAD` candidates.
+
+The bucket labels are hidden from the model. They are used only after scoring to
+check whether the model ranked good masks higher.
+
+The exact sampling rule is implemented in:
+
+```text
+inference/visium_hd_exp1/build_paired_vlm_hit_test_pool.py
+```
+
+The rule is:
+
+- `GOOD`: same-class candidates with the highest hidden Dice.
+- `MID`: same-class candidates closest to the same-class median hidden Dice.
+- `BAD`: candidates that were good enough for another class but have the lowest
+  hidden Dice for the current target class. These are hard negatives, not random
+  blank masks.
+
+For the current 90-row gray reverse-blur pool, the hidden Dice ranges are:
+
+| Class | GOOD Dice range | MID Dice range | BAD Dice range |
+|---|---:|---:|---:|
+| bronchiola | 0.753-0.758 | 0.364-0.378 | 0.000 |
+| alveoli | 0.604-0.677 | 0.214-0.227 | 0.000 |
+| vessels | 0.608-0.627 | 0.337-0.421 | 0.000 |
+| tumor | 0.513-0.527 | 0.192-0.203 | 0.000 |
+| stroma | 0.522-0.528 | 0.115-0.124 | 0.000 |
+| immune infiltration | 0.270-0.297 | 0.149-0.151 | 0.000 |
 
 ## Step 4: Test1
 

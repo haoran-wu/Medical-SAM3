@@ -80,12 +80,19 @@ Selection: top40 annotation components, rank<=25 candidate rows, recall-push rul
 Result: Dice 0.509, Precision 0.438, Recall 0.607
 ```
 
+A follow-up left-lower targeted diagnostic tested whether visibly missed
+lower-left immune components should be force-added. It can raise Recall from
+0.607 to 0.674, but Precision drops from 0.438 to 0.388 and Dice drops from
+0.509 to 0.493. Treat that as a high-recall diagnostic variant, not the default
+final mask.
+
 The reusable implementations are:
 
 ```text
 inference/visium_hd_exp1/componentwise_candidate_assembly.py
 inference/visium_hd_exp1/stream_component_candidate_oracle.py
 inference/visium_hd_exp1/search_recall_boost_from_component_candidates.py
+inference/visium_hd_exp1/diagnose_targeted_component_recall.py
 ```
 
 Current policy presets:

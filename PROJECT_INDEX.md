@@ -115,6 +115,18 @@ For reported full-pool searches, run the scan on Bouchet compute nodes and use
 the canonical HE/FICTURE candidate-pool roots documented in
 `docs/project_organization/COMPUTE_POLICY.md`.
 
+## Figure panel style
+
+When making segmentation/candidate/union figures, use the official one-row
+six-panel layout documented here:
+
+```text
+docs/project_organization/FIGURE_PANEL_STYLE.md
+```
+
+For "补上 vs 没补" comparisons, use two stacked rows with the same six panels:
+current/not-boosted on top and boosted/targeted on bottom.
+
 ## Current example bundle
 
 The current main example is collected here:

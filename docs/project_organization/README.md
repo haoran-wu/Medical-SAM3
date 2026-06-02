@@ -18,6 +18,10 @@ the Bouchet login node. Local work and login-node work are for organization,
 lightweight inspection, job submission/status checks, script/prompt editing, and
 report or presentation packaging. See `COMPUTE_POLICY.md`.
 
+The figure rule is: segmentation/candidate/union figures should use the official
+one-row six-panel layout. For before/after "补上 vs 没补" comparisons, use two
+stacked rows in that same layout. See `FIGURE_PANEL_STYLE.md`.
+
 ## What is a branch?
 
 A Git branch is a separate working line of the same project.

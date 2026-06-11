@@ -138,7 +138,10 @@ def load_vlm(model_name: str, device: str):
             raise
         from transformers import AutoModel, AutoTokenizer
 
-        tokenizer = AutoTokenizer.from_pretrained(model_name, trust_remote_code=True)
+        try:
+            tokenizer = AutoTokenizer.from_pretrained(model_name, trust_remote_code=True)
+        except Exception:
+            tokenizer = AutoTokenizer.from_pretrained(model_name, trust_remote_code=True, use_fast=False)
         model = AutoModel.from_pretrained(model_name, **load_kwargs)
         kind = "automodel_chat" if hasattr(model, "chat") else "automodel"
     if not device_map:

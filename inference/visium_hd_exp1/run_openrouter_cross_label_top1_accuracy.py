@@ -48,8 +48,26 @@ CLASS_DISPLAY = {
     "immune_infiltration": "immune infiltration",
 }
 
+
+def true_class_from_row(row: dict) -> str:
+    if row.get("true_class") in CLASS_KEYS:
+        return row["true_class"]
+    label = row.get("label") or row.get("true_label") or row.get("target_label") or ""
+    if label in TRUE_LABEL_TO_CLASS:
+        return TRUE_LABEL_TO_CLASS[label]
+    if label in CLASS_KEYS:
+        return label
+    raise KeyError(f"Cannot infer true class from row label fields: {label!r}")
+
+
 def row_key(row: dict) -> Tuple[str, str, str, str, str]:
-    return (row["label"], row["source"], row["run"], row["setting"], str(row["candidate_id"]))
+    return (
+        row.get("label") or row.get("true_label") or row.get("target_label") or row.get("true_class", ""),
+        row.get("source", ""),
+        row.get("run", ""),
+        row.get("setting", ""),
+        str(row.get("candidate_id", row.get("candidate_uid", ""))),
+    )
 
 
 def row_key_string(row: dict) -> str:
@@ -229,7 +247,8 @@ def accuracy_row(name: str, rows: Sequence[dict]) -> dict:
 def write_accuracy_tables(output_dir: Path, prediction_rows: List[dict]) -> None:
     valid_rows = [row for row in prediction_rows if row.get("parse_status") == "ok"]
     write_csv(output_dir / "overall_accuracy.csv", [accuracy_row("overall", valid_rows)])
-    bucket_rows = [accuracy_row(bucket, [row for row in valid_rows if row["sample_bucket"] == bucket]) for bucket in ["GOOD", "MID", "BAD"]]
+    buckets = sorted({row.get("sample_bucket", "") for row in valid_rows})
+    bucket_rows = [accuracy_row(bucket, [row for row in valid_rows if row.get("sample_bucket", "") == bucket]) for bucket in buckets]
     write_csv(output_dir / "bucket_accuracy.csv", bucket_rows)
     per_class = []
     for class_key in CLASS_KEYS:
@@ -342,8 +361,8 @@ code {{ background:#f4f4f4; padding:1px 4px; border-radius:4px; }}
 <h1>Cross-label and Same-class Retrieval from One VLM Score Pass</h1>
 <div class="note">
 <h2>Experiment Design</h2>
-<p><b>Goal:</b> 对每个 candidate 在 6 个 tissue class 上同时打分。同一套分数同时用于两个实验：Test1 取最高分做 tissue classification；Test2 在同一 true class 内按对应 class score 排序，看 GOOD mask 能不能排到前面。</p>
-<p><b>Candidate pool:</b> 90 个 gray reverse blur candidate，6 个 true class 各 15 个。GOOD/MID/BAD 只用于抽样分组，不给模型看。</p>
+<p><b>Goal:</b> 对每个 candidate / piece 在 6 个 tissue class 上同时打分。同一套分数可用于两个实验：Test1 取最高分做 tissue classification；Test2 或 piece-first assembly 按对应 class score 排序和选择小块。</p>
+<p><b>Candidate pool:</b> gray reverse-blur paired H&amp;E/FICTURE pool。抽样 bucket、Dice、Precision、Recall 只用于后验评价，不给模型看。</p>
 <p><b>Model inputs:</b> 每个 candidate 给两张图：H&amp;E crop 和 official FICTURE color crop。mask 内清晰，mask 外灰色并模糊；没有蓝色 overlay。</p>
 <p><b>Model outputs:</b> VLM 返回 6 个整数 score：bronchiola、alveoli、vessels、tumor、stroma、immune_infiltration。</p>
 <p><b>Ground truth use:</b> true label、GOOD/MID/BAD、Dice/Precision/Recall 都对模型隐藏，只在 API 打分结束后用于评价。</p>
@@ -355,15 +374,15 @@ code {{ background:#f4f4f4; padding:1px 4px; border-radius:4px; }}
 <h2>Overall Top1 Accuracy</h2>
 {table(overall, ["group", "n", "correct", "top1_accuracy"])}
 
-<h2>GOOD / MID / BAD Groups</h2>
-<p>这里 GOOD/MID/BAD 不是模型预测目标，只是按照原先 candidate 的 Dice 质量分出来的抽样组。</p>
+<h2>Candidate / Piece Buckets</h2>
+<p>这里的 bucket 不是模型预测目标，只是用于记录这批输入来自哪个 sampling / funnel 组。</p>
 {table(buckets, ["group", "n", "correct", "top1_accuracy"])}
 
 <h2>Accuracy By True Class</h2>
 {table(classes, ["true_class", "group", "n", "correct", "top1_accuracy"])}
 
-<h2>Test2: Same-class Candidate Retrieval</h2>
-<p>这里不再额外调用模型。对于每个 true class 的 15 个 candidate，直接用该 class 的 score 排序。例如 bronchiola 的 15 个 candidate 按 bronchiola score 排序。</p>
+<h2>Same-class Score Ranking</h2>
+<p>这里不再额外调用模型。对于每个 true class 的 candidate / piece，直接用该 class 的 score 排序。例如 bronchiola pieces 按 bronchiola score 排序。</p>
 {table(retrieval, ["target_class", "n_candidates", "top1_good", "good_in_top5", "unique_scores", "top1_bucket", "top1_score", "top1_candidate", "tie_warning"])}
 
 <h2>Prediction Preview</h2>
@@ -411,13 +430,13 @@ def main() -> None:
         rows = rows[: args.limit]
     label_counts = Counter(row["label"] for row in rows)
     bucket_counts = Counter(row["sample_bucket"] for row in rows)
-    if args.limit == 0:
-        if len(rows) != 90:
-            raise SystemExit(f"Expected 90 rows, got {len(rows)}")
-        if sorted(label_counts.values()) != [15, 15, 15, 15, 15, 15]:
-            raise SystemExit(f"Expected 15 rows per label, got {dict(label_counts)}")
-        if dict(bucket_counts) != {"GOOD": 30, "MID": 30, "BAD": 30}:
-            raise SystemExit(f"Expected GOOD/MID/BAD counts 30 each, got {dict(bucket_counts)}")
+    if not rows:
+        raise SystemExit("Input pool has no rows")
+    unexpected = sorted({true_class_from_row(row) for row in rows} - set(CLASS_KEYS))
+    if unexpected:
+        raise SystemExit(f"Unexpected true classes in input pool: {unexpected}")
+    if len({true_class_from_row(row) for row in rows}) != len(CLASS_KEYS):
+        raise SystemExit(f"Expected six true classes in input pool, got {dict(label_counts)}")
 
     args.output_dir.mkdir(parents=True, exist_ok=True)
     (args.output_dir / "prompt_system.txt").write_text(SYSTEM_PROMPT)
@@ -476,14 +495,14 @@ def main() -> None:
                 response_format=not args.disable_response_format,
             )
             predicted, top_tie, top_score = predicted_from_scores(scores)
-            true_class = TRUE_LABEL_TO_CLASS[row["label"]]
+            true_class = true_class_from_row(row)
             is_correct = bool(predicted and predicted == true_class and not top_tie)
             usage = payload.get("usage") or {}
             out = {
                 "row_index": idx,
                 "row_key": key,
                 "candidate_uid": row["candidate_uid"],
-                "true_label": row["label"],
+                "true_label": row.get("label") or row.get("true_label") or row.get("target_label") or row.get("true_class", ""),
                 "true_class": true_class,
                 "display": row["display"],
                 "sample_bucket": row["sample_bucket"],
@@ -521,7 +540,7 @@ def main() -> None:
                     "row_index": idx,
                     "row_key": key,
                     "candidate_uid": row["candidate_uid"],
-                    "true_label": row["label"],
+                    "true_label": row.get("label") or row.get("true_label") or row.get("target_label") or row.get("true_class", ""),
                     "sample_bucket": row["sample_bucket"],
                     "error": error_text[:2400],
                     "raw_response": raw_error[:2400],

@@ -15,6 +15,13 @@ bash scripts/hpc_ssh_check.sh
 
 不要跳过这一步，否则 SSH 命令会因为 DUO 认证失败而报错。
 
+Codex/agent 规则：
+
+- 不要因为 BatchMode SSH 失败就停下来等用户；先运行 `bash scripts/hpc_ssh_check.sh` 自动检查/建立 SSH ControlMaster。
+- 如果脚本需要弹出 Duo/Terminal 或访问 `~/.ssh/controlmasters`，在 Codex sandbox 中必须用非 sandbox 权限执行；否则脚本内部的 `ssh` 可能会被本地 sandbox 拦住，即使单独的 `ssh bouchet` 已经可用。
+- 如果 `scripts/hpc_ssh_check.sh` 已经建立 ControlMaster，再继续提交/同步/监控脚本。
+- 只有当 Duo 账号状态异常、认证超时多次、或管理员权限问题时，才向 Haoran 报告 blocker。
+
 HPC 主机名: `bouchet`  
 用户名: `hw646`  
 项目路径: `~/Medical-SAM3/`

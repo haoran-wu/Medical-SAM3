@@ -56,10 +56,14 @@ def row_key_string(row: dict) -> str:
 
 def parse_scores(text: str) -> Tuple[Dict[str, int], str]:
     stripped = text.strip()
-    match = re.search(r"\{.*\}", stripped, flags=re.S)
-    if not match:
+    object_candidates = re.findall(r"\{[^{}]*\}", stripped, flags=re.S)
+    if not object_candidates:
         raise ValueError("No JSON object found")
-    object_text = match.group(0)
+    object_text = object_candidates[-1]
+    for candidate in reversed(object_candidates):
+        if all(key in candidate for key in CLASS_KEYS):
+            object_text = candidate
+            break
     try:
         data = json.loads(object_text)
     except json.JSONDecodeError:
@@ -76,17 +80,20 @@ def parse_scores(text: str) -> Tuple[Dict[str, int], str]:
                     data[key] = key_match.group(1)
     if set(data.keys()) != set(CLASS_KEYS):
         raise ValueError(f"Expected keys {CLASS_KEYS}, got {sorted(data.keys())}")
-    scores: Dict[str, int] = {}
+    numeric_values: Dict[str, float] = {}
     for key in CLASS_KEYS:
         value = data[key]
         if isinstance(value, bool):
-            raise ValueError(f"{key} is boolean, not an integer score")
+            raise ValueError(f"{key} is boolean, not a numeric score")
         if isinstance(value, str):
             value = value.strip()
-        numeric = float(value)
-        if not numeric.is_integer():
-            raise ValueError(f"{key} score is not integer: {value!r}")
-        integer = int(numeric)
+        numeric_values[key] = float(value)
+    values = list(numeric_values.values())
+    if all(0.0 <= value <= 1.0 for value in values):
+        numeric_values = {key: value * 100.0 for key, value in numeric_values.items()}
+    scores: Dict[str, int] = {}
+    for key, numeric in numeric_values.items():
+        integer = int(round(numeric))
         if integer < 0 or integer > 100:
             raise ValueError(f"{key} score out of range: {integer}")
         scores[key] = integer
@@ -113,10 +120,8 @@ def accuracy_row(name: str, rows: Sequence[dict]) -> dict:
 def write_accuracy_tables(output_dir: Path, prediction_rows: List[dict]) -> None:
     valid_rows = [row for row in prediction_rows if row.get("parse_status") == "ok"]
     write_csv(output_dir / "overall_accuracy.csv", [accuracy_row("overall", valid_rows)])
-    bucket_rows = [
-        accuracy_row(bucket, [row for row in valid_rows if row["sample_bucket"] == bucket])
-        for bucket in ["GOOD", "MID", "BAD"]
-    ]
+    buckets = sorted({row.get("sample_bucket", "") for row in valid_rows if row.get("sample_bucket", "")})
+    bucket_rows = [accuracy_row(bucket, [row for row in valid_rows if row["sample_bucket"] == bucket]) for bucket in buckets]
     write_csv(output_dir / "bucket_accuracy.csv", bucket_rows)
     per_class = []
     for class_key in CLASS_KEYS:
@@ -289,13 +294,12 @@ def main() -> None:
         rows = rows[: args.limit]
     label_counts = Counter(row["label"] for row in rows)
     bucket_counts = Counter(row["sample_bucket"] for row in rows)
-    if args.limit == 0:
-        if len(rows) != 90:
-            raise SystemExit(f"Expected 90 rows, got {len(rows)}")
-        if sorted(label_counts.values()) != [15, 15, 15, 15, 15, 15]:
-            raise SystemExit(f"Expected 15 rows per label, got {dict(label_counts)}")
-        if dict(bucket_counts) != {"GOOD": 30, "MID": 30, "BAD": 30}:
-            raise SystemExit(f"Expected GOOD/MID/BAD counts 30 each, got {dict(bucket_counts)}")
+    if not rows:
+        raise SystemExit("Input pool has no rows")
+    if set(label_counts) - set(TRUE_LABEL_TO_CLASS):
+        raise SystemExit(f"Unexpected labels in input pool: {sorted(set(label_counts) - set(TRUE_LABEL_TO_CLASS))}")
+    if len(label_counts) != len(CLASS_KEYS):
+        raise SystemExit(f"Expected six labels in input pool, got {dict(label_counts)}")
 
     args.output_dir.mkdir(parents=True, exist_ok=True)
     (args.output_dir / "prompt_system.txt").write_text(SYSTEM_PROMPT)

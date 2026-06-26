@@ -106,4 +106,5 @@ python visualize_all_datasets.py
 
 **Evaluation data path:** `../medsam_data/`
 
-`../Kvasir-SEG/` is only bundled as example data for local smoke tests.
+`../examples/legacy_examples/kvasir_seg/Kvasir-SEG/` is only bundled as example
+data for local smoke tests.

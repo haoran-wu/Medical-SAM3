@@ -1,3 +1,19 @@
+## Haoran's current VisiumHD project
+
+This checkout is also being used for the current VisiumHD Exp1 research workflow:
+
+```text
+H&E + official FICTURE example
+-> H&E/FICTURE candidate mask pool
+-> component-aware union
+-> Test1 and Test2 VLM evaluation
+```
+
+Start from [`PROJECT_INDEX.md`](PROJECT_INDEX.md) for the current project map,
+main result, final report paths, cleanup policy, and Git/GitHub branch notes.
+
+The upstream Medical-SAM3 README starts below.
+
 <div align="center">
   
   <h1>🏥 Medical-SAM3</h1>
@@ -35,14 +51,16 @@ The inference pipeline supports:
 
 ## Repository Layout
 
-- `Kvasir-SEG/` is local example data for smoke tests and demos.
-- `data/spatialLIBD/151673/tissue_hires_image.png` is the current default single-image inference target for spatial transcriptomics experiments.
-- `data/spatialLIBD/151673/151673_full_image.tif` is kept as the full-resolution source image.
-- `inference/run_spatiallibd_prompts.py` runs text-prompted inference on that TIFF and saves one mask per prompt.
+- `PROJECT_INDEX.md` is the entry point for Haoran's current H&E + FICTURE research workflow.
+- `examples/current_visium_hd_exp1/` contains the current presentation example.
+- `examples/legacy_examples/` contains old standalone demo assets such as TMA24, spatialLIBD, and Kvasir-SEG.
+- `scripts/hpc_dashboard/` contains the local Bouchet monitoring dashboard helpers.
+- `scripts/presentation/` contains presentation-building helpers.
+- `inference/run_spatiallibd_prompts.py` still supports the legacy spatialLIBD example and saves one mask per prompt.
 
-## Current spatialLIBD workflow
+## Legacy spatialLIBD workflow
 
-The current repo workflow is centered on a single `spatialLIBD` TIFF image rather than the bundled medical evaluation datasets.
+This older workflow is centered on a single `spatialLIBD` TIFF image rather than the bundled medical evaluation datasets.
 
 Current prompts:
 

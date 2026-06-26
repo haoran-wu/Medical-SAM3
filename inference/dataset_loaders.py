@@ -47,6 +47,7 @@ def _resolve_dataset_dir(dataset_name: str) -> Path:
     """Find a dataset in either the shared data root or the repository folder."""
     candidates = [
         DATA_ROOT / dataset_name,
+        PROJECT_ROOT / "examples" / "legacy_examples" / "kvasir_seg" / dataset_name,
         PROJECT_ROOT / dataset_name,
         PROJECT_ROOT.parent / dataset_name,
     ]

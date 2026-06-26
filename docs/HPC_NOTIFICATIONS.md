@@ -1,6 +1,6 @@
 # HPC Notifications
 
-`hpc_progress_reporter.py` can watch SLURM jobs on `bouchet` and send updates by email or phone push.
+`scripts/hpc_dashboard/hpc_progress_reporter.py` can watch SLURM jobs on `bouchet` and send updates by email or phone push.
 
 ## Fastest way
 
@@ -58,7 +58,7 @@ export PUSHDEER_PUSHKEY="PDUxxxxxxxxxxxxxxxx"
 3. Run:
 
 ```bash
-python hpc_progress_reporter.py \
+python scripts/hpc_dashboard/hpc_progress_reporter.py \
   --watch \
   --interval 120 \
   --job-ids 12345678,12345679 \
@@ -79,7 +79,7 @@ export SMTP_PASS="your_app_password"
 Then:
 
 ```bash
-python hpc_progress_reporter.py \
+python scripts/hpc_dashboard/hpc_progress_reporter.py \
   --watch \
   --interval 120 \
   --job-ids 12345678 \
@@ -92,14 +92,14 @@ python hpc_progress_reporter.py \
 
 ```bash
 export SERVERCHAN_SENDKEY="SCTxxxxxxxxxxxxxxxx"
-python hpc_progress_reporter.py --watch --job-ids 12345678 --push-channel serverchan
+python scripts/hpc_dashboard/hpc_progress_reporter.py --watch --job-ids 12345678 --push-channel serverchan
 ```
 
 ## Enterprise WeChat webhook
 
 ```bash
 export WECOM_WEBHOOK="https://qyapi.weixin.qq.com/cgi-bin/webhook/send?key=xxxx"
-python hpc_progress_reporter.py --watch --job-ids 12345678 --push-channel wecom
+python scripts/hpc_dashboard/hpc_progress_reporter.py --watch --job-ids 12345678 --push-channel wecom
 ```
 
 ## Notes

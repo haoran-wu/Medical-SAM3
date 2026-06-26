@@ -22,12 +22,12 @@ from ficture_factor_semantics import build_semantic_legend, write_outputs
 PROJECT_ROOT = Path(__file__).resolve().parent.parent.parent
 DEFAULT_FILTERED_FICTURE_PNG = (
     PROJECT_ROOT
-    / "pixel-level cell type image"
+    / "data/visium_hd_exp1/pixel_cell_type_image"
     / "visiumhd_exp1_hex12_k12"
     / "hex_12.k12.pixel.png"
 )
 DEFAULT_FACTOR_INFO = DEFAULT_FILTERED_FICTURE_PNG.with_suffix(".info.tsv")
-DEFAULT_FICTURE_MD = PROJECT_ROOT / "pixel-level cell type image" / "Ficture.md"
+DEFAULT_FICTURE_MD = PROJECT_ROOT / "data/visium_hd_exp1/pixel_cell_type_image" / "Ficture.md"
 DEFAULT_HE_IMAGE = PROJECT_ROOT / "output" / "visium_hd_exp1" / "assets" / "tissue_hires_image.png"
 DEFAULT_REFERENCE = (
     PROJECT_ROOT
@@ -357,7 +357,7 @@ def main() -> None:
 
     status_checks = {
         "uses_filtered_png_source": args.filtered_ficture_png.name == "hex_12.k12.pixel.png"
-        and "pixel-level cell type image" in str(args.filtered_ficture_png),
+        and "data/visium_hd_exp1/pixel_cell_type_image" in str(args.filtered_ficture_png),
         "ficture_md_says_filtered_feature_bc_matrix": "filtered_feature_bc_matrix"
         in args.ficture_md.read_text(errors="ignore"),
         "no_manual_shift": True,
@@ -374,7 +374,7 @@ def main() -> None:
         "status_checks": status_checks,
         "official_pipeline": str(Path(__file__).resolve()),
         "method": (
-            "Use filtered FICTURE PNG from pixel-level cell type image, apply fliplr, map every "
+            "Use filtered FICTURE PNG from data/visium_hd_exp1/pixel_cell_type_image, apply fliplr, map every "
             "non-black filtered pixel to H&E hires with he_x=y_um/microns_per_pixel*tissue_hires_scalef "
             "and he_y=x_um/microns_per_pixel*tissue_hires_scalef, clip to H&E tissue, then fill only "
             "detected internal 1-px tile seams. No manual shift, no ROI resize, no results.tsv redraw."

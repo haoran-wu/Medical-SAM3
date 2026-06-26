@@ -1,0 +1,18 @@
+{
+  "status": "preview_current_final_test_inputs",
+  "roi_size": {
+    "width": 3144,
+    "height": 3327
+  },
+  "rule": "Tests use the final class mask: bronchiola/vessels merged component union, alveoli single best, tumor/stroma single-best plus precision-aware component union, and immune infiltration full-pool top40/rank25 recall-push union from Bouchet HE+FICTURE candidate pools.",
+  "data_out": "/Users/haoranwu/Desktop/Yan_Lab_Research/Medical-SAM3/data/visium_hd_exp1/current_ficture_vlm_inputs/final_union_test_inputs",
+  "report_out": "/Users/haoranwu/Desktop/Yan_Lab_Research/Medical-SAM3/output/visium_hd_exp1/final_deliverables/Jun01_final_union_test_inputs_preview",
+  "classes": [
+    "bronchiola",
+    "alveoli",
+    "vessels",
+    "tumor",
+    "stroma",
+    "immune_infiltration"
+  ]
+}

@@ -11,7 +11,7 @@ fi
 
 "$ROOT/scripts/hpc_ssh_check.sh"
 
-exec /usr/bin/python3 -u "$ROOT/hpc_progress_reporter.py" \
+exec /usr/bin/python3 -u "$ROOT/scripts/hpc_dashboard/hpc_progress_reporter.py" \
   --watch \
   --interval "${HPC_NOTIFY_INTERVAL:-120}" \
   --email-to "${HPC_NOTIFY_EMAIL:-vettel.hwu@gmail.com}" \

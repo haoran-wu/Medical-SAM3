@@ -24,7 +24,7 @@ PUSH_ON="${HPC_NOTIFY_PUSH_ON:-failure}"
 echo "Starting dashboard on http://127.0.0.1:${PORT}"
 echo "Reporter interval: ${INTERVAL}s"
 
-/usr/bin/python3 -u "$ROOT/hpc_dashboard.py" \
+/usr/bin/python3 -u "$ROOT/scripts/hpc_dashboard/hpc_dashboard.py" \
   --port "$PORT" \
   --interval 20 \
   --history-hours "$HISTORY_HOURS" \
@@ -40,7 +40,7 @@ cleanup() {
 trap cleanup EXIT
 
 REPORTER_ARGS=(
-  /usr/bin/python3 -u "$ROOT/hpc_progress_reporter.py"
+  /usr/bin/python3 -u "$ROOT/scripts/hpc_dashboard/hpc_progress_reporter.py"
   --watch
   --interval "$INTERVAL"
   --state-file "${HOME}/.hpc_progress_reporter_state.json"

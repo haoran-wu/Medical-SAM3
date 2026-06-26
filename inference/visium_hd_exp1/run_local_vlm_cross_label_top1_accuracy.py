@@ -16,6 +16,7 @@ from typing import Dict, Iterable, List, Sequence, Tuple
 from PIL import Image
 
 from run_paired_vlm_hit_test import generate, load_vlm, write_csv
+from vlm_prompt_contract import DEFAULT_FACTOR_LEGEND_CSV, DEFAULT_POOL_CSV, SYSTEM_PROMPT, build_user_prompt
 
 
 CLASS_KEYS = [
@@ -45,59 +46,6 @@ CLASS_DISPLAY = {
     "immune_infiltration": "immune infiltration",
 }
 
-SYSTEM_PROMPT = (
-    "You are a careful pathology image classifier. "
-    "You will see two aligned crops of the same candidate region: H&E and FICTURE. "
-    "Score which tissue class the candidate region most likely belongs to. "
-    "Return only valid JSON."
-)
-
-USER_PROMPT = """You are given two aligned crops of the same candidate region:
-
-Image 1: H&E gray reverse-blur crop.
-The candidate region is sharp and full color; the outside region is grayscale and blurred.
-
-Image 2: official FICTURE gray reverse-blur crop.
-The candidate region is sharp and full color; the outside region is grayscale and blurred.
-
-The FICTURE colors use this legend:
-This color legend applies only to Image 2, the FICTURE crop. It does not apply to Image 1.
-The pink and purple colors in H&E are normal tissue staining, not FICTURE tumor colors.
-
-Color 0: RGB 255,204,255; Major Compartment: tumor-like epithelial / AT2-like malignant epithelial; cell type: tumor epithelial.
-Color 1: RGB 0,255,255; Major Compartment: vascular smooth muscle / myofibroblast / vessel wall stroma; cell type: smooth muscle vessel wall.
-Color 2: RGB 255,255,0; Major Compartment: epithelial tumor-like / mucinous-glandular epithelial; cell type: epithelial tumor-like.
-Color 3: RGB 255,84,0; Major Compartment: alveolar epithelial pneumocyte / AT2-like; cell type: alveolar epithelial.
-Color 4: RGB 0,255,84; Major Compartment: lymphoid immune with alveolar epithelial admixture; cell type: immune/alveolar mixed.
-Color 5: RGB 84,0,255; Major Compartment: alveolar epithelial pneumocyte / AT1-AT2-like; cell type: alveolar epithelial.
-Color 6: RGB 170,0,170; Major Compartment: SPP1/APOE macrophage; cell type: macrophage.
-Color 7: RGB 0,170,170; Major Compartment: bronchiolar secretory / club airway epithelium; cell type: bronchiolar secretory.
-Color 8: RGB 170,170,0; Major Compartment: plasma cell / B lineage; cell type: plasma cell.
-Color 9: RGB 255,0,127; Major Compartment: pulmonary neuroendocrine / airway basal-like rare epithelial; cell type: neuroendocrine airway.
-Color 10: RGB 153,76,0; Major Compartment: IgA plasma cell; cell type: IgA plasma cell.
-Color 11: RGB 0,115,0; Major Compartment: IgM plasma/B cell; cell type: IgM plasma cell.
-
-Score how likely this candidate region belongs to each tissue class.
-
-Tissue classes:
-bronchiola = bronchiolar airway tissue, airway-like lumen, epithelial lining.
-alveoli = alveolar lung parenchyma, open air spaces, thin septa.
-vessels = blood vessel or vascular wall, lumen-like vascular structure, smooth muscle vessel wall.
-tumor = malignant epithelial tumor region. Prefer tumor-like epithelial morphology and tumor epithelial FICTURE color support.
-stroma = stromal / mesenchymal tissue, collagen, fibroblast, smooth-muscle-like tissue. Treat stroma as a broad tissue compartment.
-immune_infiltration = immune-cell-rich region, small round-cell aggregates, macrophage / lymphoid / plasma-cell FICTURE color support.
-
-Rules:
-- Return exactly one JSON object.
-- Use exactly these six keys:
-  bronchiola, alveoli, vessels, tumor, stroma, immune_infiltration.
-- Each value must be an integer from 0 to 100.
-- Higher means more likely.
-- Use the full 0-100 range.
-- Do not include explanation, reason, precision, recall, Dice, markdown, code fences, or extra text.
-- Do not give all classes the same score unless there is truly no visible evidence."""
-
-
 def row_key(row: dict) -> Tuple[str, str, str, str, str]:
     return (row["label"], row["source"], row["run"], row["setting"], str(row["candidate_id"]))
 
@@ -108,10 +56,14 @@ def row_key_string(row: dict) -> str:
 
 def parse_scores(text: str) -> Tuple[Dict[str, int], str]:
     stripped = text.strip()
-    match = re.search(r"\{.*\}", stripped, flags=re.S)
-    if not match:
+    object_candidates = re.findall(r"\{[^{}]*\}", stripped, flags=re.S)
+    if not object_candidates:
         raise ValueError("No JSON object found")
-    object_text = match.group(0)
+    object_text = object_candidates[-1]
+    for candidate in reversed(object_candidates):
+        if all(key in candidate for key in CLASS_KEYS):
+            object_text = candidate
+            break
     try:
         data = json.loads(object_text)
     except json.JSONDecodeError:
@@ -128,17 +80,20 @@ def parse_scores(text: str) -> Tuple[Dict[str, int], str]:
                     data[key] = key_match.group(1)
     if set(data.keys()) != set(CLASS_KEYS):
         raise ValueError(f"Expected keys {CLASS_KEYS}, got {sorted(data.keys())}")
-    scores: Dict[str, int] = {}
+    numeric_values: Dict[str, float] = {}
     for key in CLASS_KEYS:
         value = data[key]
         if isinstance(value, bool):
-            raise ValueError(f"{key} is boolean, not an integer score")
+            raise ValueError(f"{key} is boolean, not a numeric score")
         if isinstance(value, str):
             value = value.strip()
-        numeric = float(value)
-        if not numeric.is_integer():
-            raise ValueError(f"{key} score is not integer: {value!r}")
-        integer = int(numeric)
+        numeric_values[key] = float(value)
+    values = list(numeric_values.values())
+    if all(0.0 <= value <= 1.0 for value in values):
+        numeric_values = {key: value * 100.0 for key, value in numeric_values.items()}
+    scores: Dict[str, int] = {}
+    for key, numeric in numeric_values.items():
+        integer = int(round(numeric))
         if integer < 0 or integer > 100:
             raise ValueError(f"{key} score out of range: {integer}")
         scores[key] = integer
@@ -165,10 +120,8 @@ def accuracy_row(name: str, rows: Sequence[dict]) -> dict:
 def write_accuracy_tables(output_dir: Path, prediction_rows: List[dict]) -> None:
     valid_rows = [row for row in prediction_rows if row.get("parse_status") == "ok"]
     write_csv(output_dir / "overall_accuracy.csv", [accuracy_row("overall", valid_rows)])
-    bucket_rows = [
-        accuracy_row(bucket, [row for row in valid_rows if row["sample_bucket"] == bucket])
-        for bucket in ["GOOD", "MID", "BAD"]
-    ]
+    buckets = sorted({row.get("sample_bucket", "") for row in valid_rows if row.get("sample_bucket", "")})
+    bucket_rows = [accuracy_row(bucket, [row for row in valid_rows if row["sample_bucket"] == bucket]) for bucket in buckets]
     write_csv(output_dir / "bucket_accuracy.csv", bucket_rows)
     per_class = []
     for class_key in CLASS_KEYS:
@@ -324,8 +277,9 @@ code {{ background:#f4f4f4; padding:1px 4px; border-radius:4px; }}
 
 def main() -> None:
     parser = argparse.ArgumentParser()
-    parser.add_argument("--pool-csv", type=Path, required=True)
+    parser.add_argument("--pool-csv", type=Path, default=DEFAULT_POOL_CSV)
     parser.add_argument("--output-dir", type=Path, required=True)
+    parser.add_argument("--factor-legend-csv", type=Path, default=DEFAULT_FACTOR_LEGEND_CSV)
     parser.add_argument("--model", required=True)
     parser.add_argument("--device", default="cuda")
     parser.add_argument("--max-new-tokens", type=int, default=192)
@@ -333,27 +287,28 @@ def main() -> None:
     parser.add_argument("--resume", action="store_true")
     args = parser.parse_args()
 
+    user_prompt = build_user_prompt(args.factor_legend_csv)
     pool_dir = args.pool_csv.parent
     rows = list(csv.DictReader(args.pool_csv.open()))
     if args.limit:
         rows = rows[: args.limit]
     label_counts = Counter(row["label"] for row in rows)
     bucket_counts = Counter(row["sample_bucket"] for row in rows)
-    if args.limit == 0:
-        if len(rows) != 90:
-            raise SystemExit(f"Expected 90 rows, got {len(rows)}")
-        if sorted(label_counts.values()) != [15, 15, 15, 15, 15, 15]:
-            raise SystemExit(f"Expected 15 rows per label, got {dict(label_counts)}")
-        if dict(bucket_counts) != {"GOOD": 30, "MID": 30, "BAD": 30}:
-            raise SystemExit(f"Expected GOOD/MID/BAD counts 30 each, got {dict(bucket_counts)}")
+    if not rows:
+        raise SystemExit("Input pool has no rows")
+    if set(label_counts) - set(TRUE_LABEL_TO_CLASS):
+        raise SystemExit(f"Unexpected labels in input pool: {sorted(set(label_counts) - set(TRUE_LABEL_TO_CLASS))}")
+    if len(label_counts) != len(CLASS_KEYS):
+        raise SystemExit(f"Expected six labels in input pool, got {dict(label_counts)}")
 
     args.output_dir.mkdir(parents=True, exist_ok=True)
     (args.output_dir / "prompt_system.txt").write_text(SYSTEM_PROMPT)
-    (args.output_dir / "prompt_user.txt").write_text(USER_PROMPT)
+    (args.output_dir / "prompt_user.txt").write_text(user_prompt)
     (args.output_dir / "run_config.json").write_text(
         json.dumps(
             {
                 "pool_csv": str(args.pool_csv),
+                "factor_legend_csv": str(args.factor_legend_csv),
                 "model": args.model,
                 "max_new_tokens": args.max_new_tokens,
                 "class_keys": CLASS_KEYS,
@@ -387,7 +342,7 @@ def main() -> None:
         try:
             he_image = Image.open(pool_dir / row["he_crop_rel"]).convert("RGB")
             ficture_image = Image.open(pool_dir / row["ficture_crop_rel"]).convert("RGB")
-            raw = generate(vlm, args.device, [he_image, ficture_image], SYSTEM_PROMPT, USER_PROMPT, args.max_new_tokens)
+            raw = generate(vlm, args.device, [he_image, ficture_image], SYSTEM_PROMPT, user_prompt, args.max_new_tokens)
             scores, parsed_json = parse_scores(raw)
             predicted, top_tie, top_score = predicted_from_scores(scores)
             true_class = TRUE_LABEL_TO_CLASS[row["label"]]

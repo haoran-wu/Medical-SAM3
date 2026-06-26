@@ -1,0 +1,13 @@
+Factor,RGB,Major Compartment,cell type
+0,"(255, 204, 255)",Epithelial / Tumor Compartment,Lung Adenocarcinoma / Epithelial Tumor Cells
+1,"(0, 255, 255)",Stromal Compartment,Fibroblasts & Smooth Muscle Cells (Stromal / Mesenchymal)
+2,"(255, 255, 0)",Epithelial / Tumor Compartment,Lung Epithelial / Tumor Subpopulation
+3,"(255, 84, 0)",Epithelial / Tumor Compartment,Alveolar Type II (AT2) Cells
+4,"(0, 255, 84)",Immune Compartment,T Cells & B Cells (Lymphocytes)
+5,"(84, 0, 255)",Epithelial / Tumor Compartment,Lung Epithelial / Alveolar Substate
+6,"(170, 0, 170)",Immune Compartment,Macrophages / Monocytes (Myeloid Cells)
+7,"(0, 170, 170)",Epithelial / Tumor Compartment,"Airway Epithelial Cells (Club, Goblet, and Ciliated cells)"
+8,"(170, 170, 0)",Immune Compartment,Plasma Cells (IgG Dominant)
+9,"(255, 0, 127)",Stromal Compartment,Endothelial Cells
+10,"(153, 76, 0)",Immune Compartment,Plasma Cells (IgA Dominant)
+11,"(0, 115, 0)",Immune Compartment,Plasma Cells (IgM Dominant / Highly Active)

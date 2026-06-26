@@ -42,8 +42,8 @@ from render_ficture_factor_overlay_on_he import (
 
 
 PROJECT_ROOT = Path(__file__).resolve().parent.parent.parent
-DEFAULT_FICTURE_GRID = PROJECT_ROOT / "pixel-level cell type image" / "visiumhd_exp1_hex12_k12" / "hex_12.k12.pixel.png"
-DEFAULT_FACTOR_INFO = PROJECT_ROOT / "pixel-level cell type image" / "visiumhd_exp1_hex12_k12" / "hex_12.k12.pixel.info.tsv"
+DEFAULT_FICTURE_GRID = PROJECT_ROOT / "data/visium_hd_exp1/pixel_cell_type_image" / "visiumhd_exp1_hex12_k12" / "hex_12.k12.pixel.png"
+DEFAULT_FACTOR_INFO = PROJECT_ROOT / "data/visium_hd_exp1/pixel_cell_type_image" / "visiumhd_exp1_hex12_k12" / "hex_12.k12.pixel.info.tsv"
 DEFAULT_HE_IMAGE = PROJECT_ROOT / "output" / "visium_hd_exp1" / "assets" / "tissue_hires_image.png"
 DEFAULT_OUTPUT_DIR = PROJECT_ROOT / "output" / "visium_hd_exp1" / "molecular_prior_experiments" / "dx-60_dy80"
 DEFAULT_SAM3_PROPOSAL_ROOT = PROJECT_ROOT / "output" / "visium_hd_exp1" / "sam3_candidate_proposals" / "labelwise_text_box_11232554"

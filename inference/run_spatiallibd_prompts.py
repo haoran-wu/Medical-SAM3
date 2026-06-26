@@ -2,8 +2,8 @@
 """
 Run text-prompted Medical-SAM3 inference on a single image.
 
-This script is for the current workflow in this repo:
-- input image: example2.png
+This script is for the legacy spatialLIBD prompt workflow in this repo:
+- input image: examples/legacy_examples/spatiallibd/example2.png
 - prompts: histology / tissue structure labels
 
 It does not require ground-truth masks. The output is a set of predicted masks,
@@ -36,7 +36,7 @@ from render_multicolor_overlay import render_multicolor_overlay
 from sam3_inference import SAM3Model, resize_mask
 
 
-DEFAULT_IMAGE_PATH = PROJECT_ROOT / "example2.png"
+DEFAULT_IMAGE_PATH = PROJECT_ROOT / "examples" / "legacy_examples" / "spatiallibd" / "example2.png"
 DEFAULT_PROMPTS_PATH = Path(__file__).parent / "prompts" / "weixin_20260328200425_348_3014_labels.txt"
 DEFAULT_OUTPUT_DIR = PROJECT_ROOT / "output" / "example2"
 DEFAULT_MAX_SIDE = 2048

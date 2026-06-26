@@ -1,0 +1,33 @@
+{
+  "status": "FINAL_CORRECT_FICTURE_MAP_CLEAN",
+  "rule": "Only files directly tied to this FICTURE output are kept. No other HTML or inferred labels are included.",
+  "ficture_map": "final_ficture_roi_3144x3327.png",
+  "source_matched_html": "source_matched_factor_info.html",
+  "factor_gene_table": "final_factor_color_gene_table_from_ficture_html.csv",
+  "source_png_original_location": "data/visium_hd_exp1/pixel_cell_type_image/visiumhd_exp1_hex12_k12/hex_12.k12.pixel.png",
+  "source_html_original_location": "data/visium_hd_exp1/pixel_cell_type_image/visiumhd_exp1_hex12_k12/hex_12.k12.pixel.info.html",
+  "official_alignment_summary": "output/visium_hd_exp1/ficture_official_filtered_he_aligned/summary_official.json",
+  "official_status": "PASS_OFFICIAL",
+  "roi_bbox_xyxy_exclusive": [
+    75,
+    40,
+    3219,
+    3367
+  ],
+  "roi_size_wh": [
+    3144,
+    3327
+  ],
+  "n_factors": 12,
+  "llm_inferred_annotation": {
+    "status": "generated_constrained_to_user_choices",
+    "source_html": "source_matched_factor_info.html",
+    "html_output": "source_matched_factor_info_with_llm_inferred_celltypes.html",
+    "csv_output": "final_factor_color_gene_table_with_llm_inferred_celltypes.csv",
+    "columns_added": [
+      "Major Compartment",
+      "Celltype2"
+    ],
+    "rule": "Inferred only from source_matched_factor_info.html TopGene columns, constrained to the 12 Major Compartment/Celltype choices supplied by user."
+  }
+}

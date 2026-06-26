@@ -17,6 +17,7 @@ import argparse
 import csv
 import html
 import json
+import re
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Iterable
@@ -136,6 +137,15 @@ def parse_args() -> argparse.Namespace:
         ),
     )
     parser.add_argument(
+        "--combined-source-name",
+        default="",
+        help=(
+            "Optional synthetic source name. When set, all --candidate-root entries "
+            "are also scanned together as one combined pool, in addition to the "
+            "per-root source summaries."
+        ),
+    )
+    parser.add_argument(
         "--out-dir",
         type=Path,
         default=Path(
@@ -165,6 +175,15 @@ def parse_args() -> argparse.Namespace:
         type=int,
         default=0,
         help="Debug cap. 0 means no cap.",
+    )
+    parser.add_argument(
+        "--strict-root-integrity",
+        action="store_true",
+        help=(
+            "Before scoring, require each candidate root to have candidate masks, "
+            "candidate metadata/report files when available, matching counts, and "
+            "contiguous candidate ids. Writes candidate_root_integrity_audit.csv."
+        ),
     )
     return parser.parse_args()
 
@@ -250,6 +269,153 @@ def candidate_id_from_path(path: Path) -> str:
     return stem
 
 
+def count_table_rows(path: Path) -> int | None:
+    """Return a candidate-row count for CSV/JSON reports when it is unambiguous."""
+    if path.suffix.lower() == ".csv":
+        with path.open(newline="") as handle:
+            reader = csv.reader(handle)
+            try:
+                next(reader)
+            except StopIteration:
+                return 0
+            return sum(1 for _ in reader)
+
+    if path.suffix.lower() == ".json":
+        data = json.loads(path.read_text())
+        if isinstance(data, list):
+            return len(data)
+        if isinstance(data, dict):
+            for key in ("candidates", "rows", "records", "data", "items"):
+                value = data.get(key)
+                if isinstance(value, list):
+                    return len(value)
+            for key in ("n_candidates", "n_candidates_after_nms", "num_candidates", "candidate_count"):
+                value = data.get(key)
+                if isinstance(value, int):
+                    return value
+        return None
+
+    return None
+
+
+def find_candidate_table(root: Path, stems: tuple[str, ...]) -> Path | None:
+    for stem in stems:
+        for suffix in (".csv", ".json"):
+            path = root / f"{stem}{suffix}"
+            if path.exists():
+                return path
+    for stem in stems:
+        candidates = sorted(root.rglob(f"{stem}.*"))
+        candidates = [path for path in candidates if path.suffix.lower() in {".csv", ".json"}]
+        if candidates:
+            return candidates[0]
+    return None
+
+
+def validate_candidate_root(source: str, root: Path, strict: bool) -> dict[str, object]:
+    row: dict[str, object] = {
+        "source": source,
+        "root": str(root),
+        "status": "PASS",
+        "issues": "",
+        "mask_count": 0,
+        "metadata_path": "",
+        "metadata_count": "",
+        "report_path": "",
+        "report_count": "",
+        "mask_ids_contiguous": "",
+        "mask_id_start": "",
+        "mask_id_end": "",
+        "largest_id_gap": "",
+    }
+    issues: list[str] = []
+
+    if not root.exists():
+        row["status"] = "FAIL"
+        row["issues"] = "root_missing"
+        return row
+
+    mask_paths = sorted(root.rglob("candidate_masks/candidate_*.png"))
+    row["mask_count"] = len(mask_paths)
+    if not mask_paths:
+        issues.append("no_candidate_masks")
+
+    ids: list[int] = []
+    for path in mask_paths:
+        match = re.search(r"candidate_(\d+)", path.stem)
+        if match:
+            ids.append(int(match.group(1)))
+    if ids:
+        ids = sorted(ids)
+        row["mask_id_start"] = ids[0]
+        row["mask_id_end"] = ids[-1]
+        unique_ids = sorted(set(ids))
+        expected = list(range(unique_ids[0], unique_ids[0] + len(unique_ids)))
+        contiguous = unique_ids == expected and len(unique_ids) == len(ids)
+        row["mask_ids_contiguous"] = "yes" if contiguous else "no"
+        if len(unique_ids) > 1:
+            row["largest_id_gap"] = max(b - a for a, b in zip(unique_ids[:-1], unique_ids[1:]))
+        else:
+            row["largest_id_gap"] = 0
+        if strict and not contiguous:
+            issues.append("mask_ids_not_contiguous_or_duplicate")
+    elif mask_paths:
+        row["mask_ids_contiguous"] = "unknown"
+        if strict:
+            issues.append("candidate_ids_unparseable")
+
+    metadata_path = find_candidate_table(root, ("candidate_metadata", "metadata"))
+    if metadata_path is None:
+        if strict:
+            issues.append("candidate_metadata_missing")
+    else:
+        row["metadata_path"] = str(metadata_path)
+        metadata_count = count_table_rows(metadata_path)
+        row["metadata_count"] = "" if metadata_count is None else metadata_count
+        if strict and metadata_count is not None and metadata_count != len(mask_paths):
+            issues.append(f"metadata_count_{metadata_count}_!=_mask_count_{len(mask_paths)}")
+
+    report_path = find_candidate_table(root, ("candidate_report", "report"))
+    if report_path is None:
+        if strict:
+            issues.append("candidate_report_missing")
+    else:
+        row["report_path"] = str(report_path)
+        report_count = count_table_rows(report_path)
+        row["report_count"] = "" if report_count is None else report_count
+        if strict and report_count is not None and report_count != len(mask_paths):
+            issues.append(f"report_count_{report_count}_!=_mask_count_{len(mask_paths)}")
+
+    if issues:
+        row["status"] = "FAIL" if strict else "WARN"
+        row["issues"] = ";".join(issues)
+    return row
+
+
+def write_root_integrity_audit(
+    out_dir: Path,
+    candidate_roots: list[tuple[str, Path]],
+    strict: bool,
+) -> list[dict[str, object]]:
+    rows = [validate_candidate_root(source, root, strict=strict) for source, root in candidate_roots]
+    if rows:
+        pd.DataFrame(rows).to_csv(out_dir / "candidate_root_integrity_audit.csv", index=False)
+    for row in rows:
+        print(
+            "root_integrity "
+            f"source={row['source']} status={row['status']} masks={row['mask_count']} "
+            f"metadata={row['metadata_count']} report={row['report_count']} "
+            f"ids_contiguous={row['mask_ids_contiguous']} issues={row['issues']}",
+            flush=True,
+        )
+    if strict:
+        failed = [row for row in rows if row["status"] != "PASS"]
+        if failed:
+            summary = "; ".join(f"{row['source']}: {row['issues']}" for row in failed)
+            raise RuntimeError(f"Candidate root integrity gate failed: {summary}")
+    return rows
+
+
 def parse_candidate_roots(entries: Iterable[str]) -> list[tuple[str, Path]]:
     parsed: list[tuple[str, Path]] = []
     for entry in entries:
@@ -257,8 +423,6 @@ def parse_candidate_roots(entries: Iterable[str]) -> list[tuple[str, Path]]:
             raise ValueError(f"--candidate-root must be NAME=PATH, got: {entry}")
         name, value = entry.split("=", 1)
         root = Path(value)
-        if not root.exists():
-            raise FileNotFoundError(root)
         parsed.append((name, root))
     return parsed
 
@@ -462,6 +626,11 @@ def main() -> None:
     generated_images: dict[str, list[Path]] = {}
 
     candidate_roots = parse_candidate_roots(args.candidate_root)
+    root_integrity_rows = write_root_integrity_audit(
+        args.out_dir,
+        candidate_roots,
+        strict=args.strict_root_integrity,
+    )
 
     for label in args.labels:
         if label not in LABEL_TO_MASK:
@@ -522,7 +691,13 @@ def main() -> None:
             for component, component_gt in zip(scored_components, component_gt_masks)
         ]
 
-        for source, root in candidate_roots:
+        source_groups: list[tuple[str, list[tuple[str, Path]]]] = [
+            (source, [(source, root)]) for source, root in candidate_roots
+        ]
+        if args.combined_source_name and candidate_roots:
+            source_groups.append((args.combined_source_name, candidate_roots))
+
+        for source, roots in source_groups:
             best_full: tuple[float, CandidateMask, dict[str, float]] | None = None
             per_component_top: list[list[tuple[float, CandidateMask, dict[str, float]]]] = [
                 [] for _ in scored_components
@@ -530,33 +705,34 @@ def main() -> None:
             per_component_top1_masks: list[np.ndarray | None] = [None for _ in scored_components]
             n_seen = 0
 
-            for candidate in iter_candidate_masks(source, root, expected_size, args.max_candidates_per_root):
-                n_seen += 1
-                pred_area = int(candidate.mask.sum())
-                full_tp = int(candidate.mask[gt].sum())
-                full_m = metrics_from_counts(full_tp, pred_area, total_area)
-                if best_full is None or full_m["dice"] > best_full[0]:
-                    best_full = (full_m["dice"], candidate, full_m)
+            for root_source, root in roots:
+                for candidate in iter_candidate_masks(root_source, root, expected_size, args.max_candidates_per_root):
+                    n_seen += 1
+                    pred_area = int(candidate.mask.sum())
+                    full_tp = int(candidate.mask[gt].sum())
+                    full_m = metrics_from_counts(full_tp, pred_area, total_area)
+                    if best_full is None or full_m["dice"] > best_full[0]:
+                        best_full = (full_m["dice"], candidate, full_m)
 
-                if n_seen % 1000 == 0:
-                    print(
-                        f"{display} {source}: scanned {n_seen} masks; "
-                        f"current best full Dice={best_full[0]:.4f}",
-                        flush=True,
-                    )
+                    if n_seen % 1000 == 0:
+                        print(
+                            f"{display} {source}: scanned {n_seen} masks; "
+                            f"current best full Dice={best_full[0]:.4f}",
+                            flush=True,
+                        )
 
-                for idx, (component, component_gt_crop) in enumerate(
-                    zip(scored_components, component_gt_crops)
-                ):
-                    pred_crop = candidate.mask[component.y0 : component.y1, component.x0 : component.x1]
-                    component_tp = int(pred_crop[component_gt_crop].sum())
-                    m = metrics_from_counts(component_tp, pred_area, component.area)
-                    ranked = per_component_top[idx]
-                    ranked.append((m["dice"], candidate, m))
-                    ranked.sort(key=lambda item: item[0], reverse=True)
-                    del ranked[args.top_k_per_component :]
-                    if ranked and ranked[0][1].path == candidate.path:
-                        per_component_top1_masks[idx] = candidate.mask.copy()
+                    for idx, (component, component_gt_crop) in enumerate(
+                        zip(scored_components, component_gt_crops)
+                    ):
+                        pred_crop = candidate.mask[component.y0 : component.y1, component.x0 : component.x1]
+                        component_tp = int(pred_crop[component_gt_crop].sum())
+                        m = metrics_from_counts(component_tp, pred_area, component.area)
+                        ranked = per_component_top[idx]
+                        ranked.append((m["dice"], candidate, m))
+                        ranked.sort(key=lambda item: item[0], reverse=True)
+                        del ranked[args.top_k_per_component :]
+                        if ranked and ranked[0][1].path == candidate.path:
+                            per_component_top1_masks[idx] = candidate.mask.copy()
 
             if n_seen == 0 or best_full is None:
                 continue
@@ -578,6 +754,7 @@ def main() -> None:
                         "dice_vs_component": f"{m['dice']:.4f}",
                         "precision_vs_component": f"{m['precision']:.4f}",
                         "recall_vs_component": f"{m['recall']:.4f}",
+                        "candidate_source": candidate.source,
                         "setting": candidate.setting,
                         "candidate": candidate.candidate_id,
                         "resized_from": candidate.resized_from,
@@ -604,10 +781,10 @@ def main() -> None:
                     "n_scored_components": len(scored_components),
                     "scored_component_ids": ", ".join(f"C{component.component_id}" for component in scored_components),
                     "selected_candidates": "; ".join(
-                        f"C{component.component_id}:{candidate.setting}/candidate_{candidate.candidate_id}"
+                        f"C{component.component_id}:{candidate.source}/{candidate.setting}/candidate_{candidate.candidate_id}"
                         for component, candidate in zip(scored_components, selected_candidates)
                     ),
-                    "single_best_candidate": f"{best_full_candidate.setting}/candidate_{best_full_candidate.candidate_id}",
+                    "single_best_candidate": f"{best_full_candidate.source}/{best_full_candidate.setting}/candidate_{best_full_candidate.candidate_id}",
                 }
             )
 
@@ -627,8 +804,11 @@ def main() -> None:
         "ficture_image": str(args.ficture_image),
         "labels": args.labels,
         "candidate_roots": args.candidate_root,
+        "combined_source_name": args.combined_source_name,
         "min_component_area": args.min_component_area,
         "top_k_per_component": args.top_k_per_component,
+        "strict_root_integrity": args.strict_root_integrity,
+        "candidate_root_integrity_audit": root_integrity_rows,
         "out_dir": str(args.out_dir),
     }
     (args.out_dir / "run_metadata.json").write_text(json.dumps(metadata, indent=2, ensure_ascii=False))

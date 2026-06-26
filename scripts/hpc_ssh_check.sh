@@ -29,6 +29,11 @@ if check_alive; then
     exit 0
 fi
 
+if ssh -o BatchMode=yes "$HOST" 'true' >/dev/null 2>&1; then
+    echo "BatchMode SSH already works: $HOST"
+    exit 0
+fi
+
 echo "ControlMaster is down for $HOST."
 echo "Opening Terminal for Duo login. Leave it open until it prints CONNECTED."
 

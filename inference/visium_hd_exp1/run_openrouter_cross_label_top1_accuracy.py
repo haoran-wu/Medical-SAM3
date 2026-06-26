@@ -18,6 +18,7 @@ from pathlib import Path
 from typing import Dict, Iterable, List, Sequence, Tuple
 
 from run_openrouter_vlm_hit_test import image_data_url, write_csv
+from vlm_prompt_contract import DEFAULT_FACTOR_LEGEND_CSV, DEFAULT_POOL_CSV, SYSTEM_PROMPT, build_user_prompt
 
 
 CLASS_KEYS = [
@@ -47,61 +48,26 @@ CLASS_DISPLAY = {
     "immune_infiltration": "immune infiltration",
 }
 
-SYSTEM_PROMPT = (
-    "You are a careful pathology image classifier. "
-    "You will see two aligned crops of the same candidate region: H&E and FICTURE. "
-    "Score which tissue class the candidate region most likely belongs to. "
-    "Return only valid JSON."
-)
 
-USER_PROMPT = """You are given two aligned crops of the same candidate region:
-
-Image 1: H&E gray reverse-blur crop.
-The candidate region is sharp and full color; the outside region is grayscale and blurred.
-
-Image 2: official FICTURE gray reverse-blur crop.
-The candidate region is sharp and full color; the outside region is grayscale and blurred.
-
-The FICTURE colors use this legend:
-This color legend applies only to Image 2, the FICTURE crop. It does not apply to Image 1.
-The pink and purple colors in H&E are normal tissue staining, not FICTURE tumor colors.
-
-Color 0: RGB 255,204,255; Major Compartment: tumor-like epithelial / AT2-like malignant epithelial; cell type: tumor epithelial.
-Color 1: RGB 0,255,255; Major Compartment: vascular smooth muscle / myofibroblast / vessel wall stroma; cell type: smooth muscle vessel wall.
-Color 2: RGB 255,255,0; Major Compartment: epithelial tumor-like / mucinous-glandular epithelial; cell type: epithelial tumor-like.
-Color 3: RGB 255,84,0; Major Compartment: alveolar epithelial pneumocyte / AT2-like; cell type: alveolar epithelial.
-Color 4: RGB 0,255,84; Major Compartment: lymphoid immune with alveolar epithelial admixture; cell type: immune/alveolar mixed.
-Color 5: RGB 84,0,255; Major Compartment: alveolar epithelial pneumocyte / AT1-AT2-like; cell type: alveolar epithelial.
-Color 6: RGB 170,0,170; Major Compartment: SPP1/APOE macrophage; cell type: macrophage.
-Color 7: RGB 0,170,170; Major Compartment: bronchiolar secretory / club airway epithelium; cell type: bronchiolar secretory.
-Color 8: RGB 170,170,0; Major Compartment: plasma cell / B lineage; cell type: plasma cell.
-Color 9: RGB 255,0,127; Major Compartment: pulmonary neuroendocrine / airway basal-like rare epithelial; cell type: neuroendocrine airway.
-Color 10: RGB 153,76,0; Major Compartment: IgA plasma cell; cell type: IgA plasma cell.
-Color 11: RGB 0,115,0; Major Compartment: IgM plasma/B cell; cell type: IgM plasma cell.
-
-Score how likely this candidate region belongs to each tissue class.
-
-Tissue classes:
-bronchiola = bronchiolar airway tissue, airway-like lumen, epithelial lining.
-alveoli = alveolar lung parenchyma, open air spaces, thin septa.
-vessels = blood vessel or vascular wall, lumen-like vascular structure, smooth muscle vessel wall.
-tumor = malignant epithelial tumor region. Prefer tumor-like epithelial morphology and tumor epithelial FICTURE color support.
-stroma = stromal / mesenchymal tissue, collagen, fibroblast, smooth-muscle-like tissue. Treat stroma as a broad tissue compartment.
-immune_infiltration = immune-cell-rich region, small round-cell aggregates, macrophage / lymphoid / plasma-cell FICTURE color support.
-
-Rules:
-- Return exactly one JSON object.
-- Use exactly these six keys:
-  bronchiola, alveoli, vessels, tumor, stroma, immune_infiltration.
-- Each value must be an integer from 0 to 100.
-- Higher means more likely.
-- Use the full 0-100 range.
-- Do not include explanation, reason, precision, recall, Dice, markdown, code fences, or extra text.
-- Do not give all classes the same score unless there is truly no visible evidence."""
+def true_class_from_row(row: dict) -> str:
+    if row.get("true_class") in CLASS_KEYS:
+        return row["true_class"]
+    label = row.get("label") or row.get("true_label") or row.get("target_label") or ""
+    if label in TRUE_LABEL_TO_CLASS:
+        return TRUE_LABEL_TO_CLASS[label]
+    if label in CLASS_KEYS:
+        return label
+    raise KeyError(f"Cannot infer true class from row label fields: {label!r}")
 
 
 def row_key(row: dict) -> Tuple[str, str, str, str, str]:
-    return (row["label"], row["source"], row["run"], row["setting"], str(row["candidate_id"]))
+    return (
+        row.get("label") or row.get("true_label") or row.get("target_label") or row.get("true_class", ""),
+        row.get("source", ""),
+        row.get("run", ""),
+        row.get("setting", ""),
+        str(row.get("candidate_id", row.get("candidate_uid", ""))),
+    )
 
 
 def row_key_string(row: dict) -> str:
@@ -161,6 +127,7 @@ def openrouter_cross_label_chat(
     model: str,
     he_data_url: str,
     ficture_data_url: str,
+    user_prompt: str,
     max_tokens: int,
     temperature: float,
     timeout: int,
@@ -175,7 +142,7 @@ def openrouter_cross_label_chat(
                 "content": [
                     {"type": "image_url", "image_url": {"url": he_data_url}},
                     {"type": "image_url", "image_url": {"url": ficture_data_url}},
-                    {"type": "text", "text": USER_PROMPT},
+                    {"type": "text", "text": user_prompt},
                 ],
             },
         ],
@@ -221,6 +188,7 @@ def safe_request(
     model: str,
     he_data_url: str,
     ficture_data_url: str,
+    user_prompt: str,
     max_tokens: int,
     temperature: float,
     timeout: int,
@@ -237,6 +205,7 @@ def safe_request(
                 model=model,
                 he_data_url=he_data_url,
                 ficture_data_url=ficture_data_url,
+                user_prompt=user_prompt,
                 max_tokens=max_tokens,
                 temperature=temperature,
                 timeout=timeout,
@@ -278,7 +247,8 @@ def accuracy_row(name: str, rows: Sequence[dict]) -> dict:
 def write_accuracy_tables(output_dir: Path, prediction_rows: List[dict]) -> None:
     valid_rows = [row for row in prediction_rows if row.get("parse_status") == "ok"]
     write_csv(output_dir / "overall_accuracy.csv", [accuracy_row("overall", valid_rows)])
-    bucket_rows = [accuracy_row(bucket, [row for row in valid_rows if row["sample_bucket"] == bucket]) for bucket in ["GOOD", "MID", "BAD"]]
+    buckets = sorted({row.get("sample_bucket", "") for row in valid_rows})
+    bucket_rows = [accuracy_row(bucket, [row for row in valid_rows if row.get("sample_bucket", "") == bucket]) for bucket in buckets]
     write_csv(output_dir / "bucket_accuracy.csv", bucket_rows)
     per_class = []
     for class_key in CLASS_KEYS:
@@ -391,8 +361,8 @@ code {{ background:#f4f4f4; padding:1px 4px; border-radius:4px; }}
 <h1>Cross-label and Same-class Retrieval from One VLM Score Pass</h1>
 <div class="note">
 <h2>Experiment Design</h2>
-<p><b>Goal:</b> 对每个 candidate 在 6 个 tissue class 上同时打分。同一套分数同时用于两个实验：Test1 取最高分做 tissue classification；Test2 在同一 true class 内按对应 class score 排序，看 GOOD mask 能不能排到前面。</p>
-<p><b>Candidate pool:</b> 90 个 gray reverse blur candidate，6 个 true class 各 15 个。GOOD/MID/BAD 只用于抽样分组，不给模型看。</p>
+<p><b>Goal:</b> 对每个 candidate / piece 在 6 个 tissue class 上同时打分。同一套分数可用于两个实验：Test1 取最高分做 tissue classification；Test2 或 piece-first assembly 按对应 class score 排序和选择小块。</p>
+<p><b>Candidate pool:</b> gray reverse-blur paired H&amp;E/FICTURE pool。抽样 bucket、Dice、Precision、Recall 只用于后验评价，不给模型看。</p>
 <p><b>Model inputs:</b> 每个 candidate 给两张图：H&amp;E crop 和 official FICTURE color crop。mask 内清晰，mask 外灰色并模糊；没有蓝色 overlay。</p>
 <p><b>Model outputs:</b> VLM 返回 6 个整数 score：bronchiola、alveoli、vessels、tumor、stroma、immune_infiltration。</p>
 <p><b>Ground truth use:</b> true label、GOOD/MID/BAD、Dice/Precision/Recall 都对模型隐藏，只在 API 打分结束后用于评价。</p>
@@ -404,15 +374,15 @@ code {{ background:#f4f4f4; padding:1px 4px; border-radius:4px; }}
 <h2>Overall Top1 Accuracy</h2>
 {table(overall, ["group", "n", "correct", "top1_accuracy"])}
 
-<h2>GOOD / MID / BAD Groups</h2>
-<p>这里 GOOD/MID/BAD 不是模型预测目标，只是按照原先 candidate 的 Dice 质量分出来的抽样组。</p>
+<h2>Candidate / Piece Buckets</h2>
+<p>这里的 bucket 不是模型预测目标，只是用于记录这批输入来自哪个 sampling / funnel 组。</p>
 {table(buckets, ["group", "n", "correct", "top1_accuracy"])}
 
 <h2>Accuracy By True Class</h2>
 {table(classes, ["true_class", "group", "n", "correct", "top1_accuracy"])}
 
-<h2>Test2: Same-class Candidate Retrieval</h2>
-<p>这里不再额外调用模型。对于每个 true class 的 15 个 candidate，直接用该 class 的 score 排序。例如 bronchiola 的 15 个 candidate 按 bronchiola score 排序。</p>
+<h2>Same-class Score Ranking</h2>
+<p>这里不再额外调用模型。对于每个 true class 的 candidate / piece，直接用该 class 的 score 排序。例如 bronchiola pieces 按 bronchiola score 排序。</p>
 {table(retrieval, ["target_class", "n_candidates", "top1_good", "good_in_top5", "unique_scores", "top1_bucket", "top1_score", "top1_candidate", "tie_warning"])}
 
 <h2>Prediction Preview</h2>
@@ -428,8 +398,9 @@ code {{ background:#f4f4f4; padding:1px 4px; border-radius:4px; }}
 
 def main() -> None:
     parser = argparse.ArgumentParser()
-    parser.add_argument("--pool-csv", type=Path, required=True)
+    parser.add_argument("--pool-csv", type=Path, default=DEFAULT_POOL_CSV)
     parser.add_argument("--output-dir", type=Path, required=True)
+    parser.add_argument("--factor-legend-csv", type=Path, default=DEFAULT_FACTOR_LEGEND_CSV)
     parser.add_argument("--model", default="openai/gpt-5.5")
     parser.add_argument("--api-key-env", default="OPENROUTER_API_KEY")
     parser.add_argument("--api-key-file", type=Path, default=Path(".openrouter_api_key"))
@@ -452,27 +423,29 @@ def main() -> None:
     if not api_key:
         raise SystemExit(f"Missing {args.api_key_env} and {args.api_key_file}")
 
+    user_prompt = build_user_prompt(args.factor_legend_csv)
     pool_dir = args.pool_csv.parent
     rows = list(csv.DictReader(args.pool_csv.open()))
     if args.limit:
         rows = rows[: args.limit]
     label_counts = Counter(row["label"] for row in rows)
     bucket_counts = Counter(row["sample_bucket"] for row in rows)
-    if args.limit == 0:
-        if len(rows) != 90:
-            raise SystemExit(f"Expected 90 rows, got {len(rows)}")
-        if sorted(label_counts.values()) != [15, 15, 15, 15, 15, 15]:
-            raise SystemExit(f"Expected 15 rows per label, got {dict(label_counts)}")
-        if dict(bucket_counts) != {"GOOD": 30, "MID": 30, "BAD": 30}:
-            raise SystemExit(f"Expected GOOD/MID/BAD counts 30 each, got {dict(bucket_counts)}")
+    if not rows:
+        raise SystemExit("Input pool has no rows")
+    unexpected = sorted({true_class_from_row(row) for row in rows} - set(CLASS_KEYS))
+    if unexpected:
+        raise SystemExit(f"Unexpected true classes in input pool: {unexpected}")
+    if len({true_class_from_row(row) for row in rows}) != len(CLASS_KEYS):
+        raise SystemExit(f"Expected six true classes in input pool, got {dict(label_counts)}")
 
     args.output_dir.mkdir(parents=True, exist_ok=True)
     (args.output_dir / "prompt_system.txt").write_text(SYSTEM_PROMPT)
-    (args.output_dir / "prompt_user.txt").write_text(USER_PROMPT)
+    (args.output_dir / "prompt_user.txt").write_text(user_prompt)
     (args.output_dir / "run_config.json").write_text(
         json.dumps(
             {
                 "pool_csv": str(args.pool_csv),
+                "factor_legend_csv": str(args.factor_legend_csv),
                 "model": args.model,
                 "temperature": args.temperature,
                 "max_tokens": args.max_tokens,
@@ -514,6 +487,7 @@ def main() -> None:
                 model=args.model,
                 he_data_url=he_url,
                 ficture_data_url=ficture_url,
+                user_prompt=user_prompt,
                 max_tokens=args.max_tokens,
                 temperature=args.temperature,
                 timeout=args.timeout,
@@ -521,14 +495,14 @@ def main() -> None:
                 response_format=not args.disable_response_format,
             )
             predicted, top_tie, top_score = predicted_from_scores(scores)
-            true_class = TRUE_LABEL_TO_CLASS[row["label"]]
+            true_class = true_class_from_row(row)
             is_correct = bool(predicted and predicted == true_class and not top_tie)
             usage = payload.get("usage") or {}
             out = {
                 "row_index": idx,
                 "row_key": key,
                 "candidate_uid": row["candidate_uid"],
-                "true_label": row["label"],
+                "true_label": row.get("label") or row.get("true_label") or row.get("target_label") or row.get("true_class", ""),
                 "true_class": true_class,
                 "display": row["display"],
                 "sample_bucket": row["sample_bucket"],
@@ -566,7 +540,7 @@ def main() -> None:
                     "row_index": idx,
                     "row_key": key,
                     "candidate_uid": row["candidate_uid"],
-                    "true_label": row["label"],
+                    "true_label": row.get("label") or row.get("true_label") or row.get("target_label") or row.get("true_class", ""),
                     "sample_bucket": row["sample_bucket"],
                     "error": error_text[:2400],
                     "raw_response": raw_error[:2400],

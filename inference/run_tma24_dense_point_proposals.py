@@ -34,7 +34,7 @@ from metrics import compute_all_metrics
 from sam3_inference import SAM3Model, resize_mask
 
 
-DEFAULT_IMAGE_PATH = PROJECT_ROOT / "example1.jpg"
+DEFAULT_IMAGE_PATH = PROJECT_ROOT / "examples" / "legacy_examples" / "tma24" / "example1.jpg"
 DEFAULT_PSEUDOMASK_DIR = PROJECT_ROOT / "output" / "00_FINAL_tma24_example1_scale_0p55_shiftX_neg120_shiftY_620"
 DEFAULT_SUMMARY_PATH = DEFAULT_PSEUDOMASK_DIR / "summary.json"
 DEFAULT_OUTPUT_DIR = PROJECT_ROOT / "output" / "tma24_dense_point_proposals"

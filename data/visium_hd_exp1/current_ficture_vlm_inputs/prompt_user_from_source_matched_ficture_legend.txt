@@ -1,0 +1,42 @@
+You are given two aligned crops of the same candidate region:
+
+Image 1: H&E gray reverse-blur crop.
+The candidate region is sharp and full color; the outside region is grayscale and blurred.
+
+Image 2: FICTURE gray reverse-blur crop.
+The candidate region is sharp and full color; the outside region is grayscale and blurred.
+
+FICTURE color legend for Image 2:
+
+Color 0: RGB (255, 204, 255); compartment: Epithelial / Tumor Compartment; cell type: Lung Adenocarcinoma / Epithelial Tumor Cells.
+Color 1: RGB (0, 255, 255); compartment: Stromal Compartment; cell type: Fibroblasts & Smooth Muscle Cells (Stromal / Mesenchymal).
+Color 2: RGB (255, 255, 0); compartment: Epithelial / Tumor Compartment; cell type: Lung Epithelial / Tumor Subpopulation.
+Color 3: RGB (255, 84, 0); compartment: Epithelial / Tumor Compartment; cell type: Alveolar Type II (AT2) Cells.
+Color 4: RGB (0, 255, 84); compartment: Immune Compartment; cell type: T Cells & B Cells (Lymphocytes).
+Color 5: RGB (84, 0, 255); compartment: Epithelial / Tumor Compartment; cell type: Lung Epithelial / Alveolar Substate.
+Color 6: RGB (170, 0, 170); compartment: Immune Compartment; cell type: Macrophages / Monocytes (Myeloid Cells).
+Color 7: RGB (0, 170, 170); compartment: Epithelial / Tumor Compartment; cell type: Airway Epithelial Cells (Club, Goblet, and Ciliated cells).
+Color 8: RGB (170, 170, 0); compartment: Immune Compartment; cell type: Plasma Cells (IgG Dominant).
+Color 9: RGB (255, 0, 127); compartment: Stromal Compartment; cell type: Endothelial Cells.
+Color 10: RGB (153, 76, 0); compartment: Immune Compartment; cell type: Plasma Cells (IgA Dominant).
+Color 11: RGB (0, 115, 0); compartment: Immune Compartment; cell type: Plasma Cells (IgM Dominant / Highly Active).
+
+Score how likely this candidate region belongs to each tissue class.
+
+Tissue classes:
+bronchiola = bronchiolar airway tissue, airway-like lumen, epithelial lining.
+alveoli = alveolar lung parenchyma, open air spaces, thin septa.
+vessels = blood vessel or vascular wall, lumen-like vascular structure, smooth muscle vessel wall.
+tumor = malignant epithelial tumor region. Prefer tumor-like epithelial morphology and tumor epithelial FICTURE color support.
+stroma = stromal / mesenchymal tissue, collagen, fibroblast, smooth-muscle-like tissue. Treat stroma as a broad tissue compartment.
+immune_infiltration = immune-cell-rich region, small round-cell aggregates, macrophage / lymphoid / plasma-cell FICTURE color support.
+
+Rules:
+- Return exactly one JSON object.
+- Use exactly these six keys:
+  bronchiola, alveoli, vessels, tumor, stroma, immune_infiltration.
+- Each value must be an integer from 0 to 100.
+- Higher means more likely.
+- Use the full 0-100 range.
+- Do not include explanation, markdown, code fences, or extra text.
+- Do not give all classes the same score unless there is truly no visible evidence.

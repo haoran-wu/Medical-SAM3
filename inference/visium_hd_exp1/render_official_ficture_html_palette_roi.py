@@ -23,7 +23,7 @@ from PIL import Image, ImageDraw, ImageFont
 
 PROJECT_ROOT = Path(__file__).resolve().parent.parent.parent
 DEFAULT_INPUT_DIR = PROJECT_ROOT / "output/visium_hd_exp1/ficture_official_filtered_candidate_pool_input_roi"
-DEFAULT_HTML = PROJECT_ROOT / "pixel-level cell type image/hex_12.k12.pixel.info.html"
+DEFAULT_HTML = PROJECT_ROOT / "data/visium_hd_exp1/pixel_cell_type_image/hex_12.k12.pixel.info.html"
 DEFAULT_OFFICIAL_SUMMARY = (
     PROJECT_ROOT / "output/visium_hd_exp1/ficture_official_filtered_he_aligned/summary_official.json"
 )

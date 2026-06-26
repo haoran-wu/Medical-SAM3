@@ -12,7 +12,7 @@ Desktop deliverable folder.
 - Official candidate input: `output/visium_hd_exp1/ficture_official_filtered_candidate_pool_input_roi`
 - ROI size: `3144 x 3327`
 - Factor-index shape: `3327 x 3144`
-- Official source: `pixel-level cell type image/visiumhd_exp1_hex12_k12/hex_12.k12.pixel.png`
+- Official source: `data/visium_hd_exp1/pixel_cell_type_image/visiumhd_exp1_hex12_k12/hex_12.k12.pixel.png`
 - Transform: `np.fliplr(raw filtered PNG)`, then
   `he_x = y_um / microns_per_pixel * tissue_hires_scalef` and
   `he_y = x_um / microns_per_pixel * tissue_hires_scalef`

@@ -209,60 +209,54 @@ def build_overview(
         )
     )
 
-    gap_row = max(rows, key=lambda row: int(row["selected_cell_count"]))
-    gx0, gy0, gx1, gy1 = (int(value) for value in gap_row["expanded_box_xyxy"])
-    pad = 220
-    crop = (
-        max(0, gx0 - pad),
-        max(0, gy0 - pad),
-        min(he.shape[1], gx1 + pad),
-        min(he.shape[0], gy1 + pad),
-    )
-    cx0, cy0, cx1, cy1 = crop
-    zoom_he = draw_prompt_panel(
-        he[cy0:cy1, cx0:cx1],
-        [
-            {
-                **gap_row,
-                "tight_box_xyxy": [
-                    int(gap_row["tight_box_xyxy"][0]) - cx0,
-                    int(gap_row["tight_box_xyxy"][1]) - cy0,
-                    int(gap_row["tight_box_xyxy"][2]) - cx0,
-                    int(gap_row["tight_box_xyxy"][3]) - cy0,
-                ],
-                "point_x": int(gap_row["point_x"]) - cx0,
-                "point_y": int(gap_row["point_y"]) - cy0,
-            }
-        ],
-        "tight_box_xyxy",
-        (0, 125, 120),
-    )
-    zoom_ficture = draw_prompt_panel(
-        ficture_light[cy0:cy1, cx0:cx1],
-        [
-            {
-                **gap_row,
-                "tight_box_xyxy": [
-                    int(gap_row["tight_box_xyxy"][0]) - cx0,
-                    int(gap_row["tight_box_xyxy"][1]) - cy0,
-                    int(gap_row["tight_box_xyxy"][2]) - cx0,
-                    int(gap_row["tight_box_xyxy"][3]) - cy0,
-                ],
-                "point_x": int(gap_row["point_x"]) - cx0,
-                "point_y": int(gap_row["point_y"]) - cy0,
-            }
-        ],
-        "tight_box_xyxy",
-        (220, 92, 35),
-    )
-
     panels = [
         ("1. Registered H&E with all new prompts", he_prompts),
         ("2. Registered FICTURE with the same prompts", ficture_prompts),
         ("3. Automatically detected H&E-present / FICTURE-low cells", grid_full),
-        (f"4. Largest detected gap on H&E: {gap_row['region_id']}", zoom_he),
-        (f"5. The same gap on FICTURE: {gap_row['region_id']}", zoom_ficture),
     ]
+    if rows:
+        gap_row = max(rows, key=lambda row: int(row["selected_cell_count"]))
+        gx0, gy0, gx1, gy1 = (int(value) for value in gap_row["expanded_box_xyxy"])
+        pad = 220
+        cx0, cy0, cx1, cy1 = (
+            max(0, gx0 - pad),
+            max(0, gy0 - pad),
+            min(he.shape[1], gx1 + pad),
+            min(he.shape[0], gy1 + pad),
+        )
+        local_row = {
+            **gap_row,
+            "tight_box_xyxy": [
+                int(gap_row["tight_box_xyxy"][0]) - cx0,
+                int(gap_row["tight_box_xyxy"][1]) - cy0,
+                int(gap_row["tight_box_xyxy"][2]) - cx0,
+                int(gap_row["tight_box_xyxy"][3]) - cy0,
+            ],
+            "point_x": int(gap_row["point_x"]) - cx0,
+            "point_y": int(gap_row["point_y"]) - cy0,
+        }
+        panels.extend(
+            [
+                (
+                    f"4. Largest detected gap on H&E: {gap_row['region_id']}",
+                    draw_prompt_panel(
+                        he[cy0:cy1, cx0:cx1],
+                        [local_row],
+                        "tight_box_xyxy",
+                        (0, 125, 120),
+                    ),
+                ),
+                (
+                    f"5. The same gap on FICTURE: {gap_row['region_id']}",
+                    draw_prompt_panel(
+                        ficture_light[cy0:cy1, cx0:cx1],
+                        [local_row],
+                        "tight_box_xyxy",
+                        (220, 92, 35),
+                    ),
+                ),
+            ]
+        )
     card_w, card_h = 720, 800
     columns = 3
     panel_w, panel_h = 670, 670
@@ -288,7 +282,11 @@ def build_overview(
     )
     draw.text(
         (24, 104),
-        "Teal/orange rectangle = tight box; black dot = positive point. Both are used in SAM.",
+        (
+            "Teal/orange rectangle = tight box; black dot = positive point. Both are used in SAM."
+            if rows
+            else "No region passed the fixed detector rule; zero independent H&E prompts were created."
+        ),
         fill=(69, 83, 92),
         font=body_font,
     )
@@ -364,9 +362,6 @@ def main() -> None:
     for index, row in enumerate(regions, start=1):
         row["region_id"] = f"R{index}"
 
-    if not regions:
-        raise RuntimeError("No H&E-present / FICTURE-low regions passed the blind rule")
-
     audit_rows: list[dict[str, object]] = []
     for row in regions:
         audit_rows.append(
@@ -383,11 +378,19 @@ def main() -> None:
                 "existing_he_masks_used_for_detection": False,
             }
         )
-    write_csv(
-        args.output_dir / "detected_regions.csv",
-        audit_rows,
-        list(audit_rows[0].keys()),
-    )
+    audit_fields = [
+        "region_id",
+        "selected_cell_count",
+        "tight_box_xyxy",
+        "expanded_box_xyxy",
+        "point_x",
+        "point_y",
+        "mean_he_tissue_fraction",
+        "mean_ficture_signal_fraction",
+        "selection_used_annotation",
+        "existing_he_masks_used_for_detection",
+    ]
+    write_csv(args.output_dir / "detected_regions.csv", audit_rows, audit_fields)
 
     prompt_fields = [
         "prompt_id",
@@ -433,53 +436,58 @@ def main() -> None:
             )
         write_csv(args.output_dir / f"prompts_{name}.csv", prompt_rows, prompt_fields)
 
-    largest = max(regions, key=lambda row: int(row["selected_cell_count"]))
-    lx0, ly0, lx1, ly1 = largest["expanded_box_xyxy"]
     crop_pad = 256
-    crop_box = (
-        max(0, int(lx0) - crop_pad),
-        max(0, int(ly0) - crop_pad),
-        min(width, int(lx1) + crop_pad),
-        min(height, int(ly1) + crop_pad),
-    )
-    cx0, cy0, cx1, cy1 = crop_box
-    crop_dir = args.output_dir / "largest_gap_crop"
-    crop_dir.mkdir(parents=True, exist_ok=True)
-    Image.fromarray(he[cy0:cy1, cx0:cx1]).save(crop_dir / "R7_he_crop.png")
-    Image.fromarray(ficture[cy0:cy1, cx0:cx1]).save(crop_dir / "R7_ficture_crop.png")
-    for name, box_key, include_point in prompt_variants:
-        x0, y0, x1, y1 = largest[box_key]
-        crop_prompt = {
-            "prompt_id": f"{name}_{largest['region_id']}",
-            "region_id": largest["region_id"],
-            "box_x1": int(x0) - cx0,
-            "box_y1": int(y0) - cy0,
-            "box_x2": int(x1) - cx0,
-            "box_y2": int(y1) - cy0,
-            "point_x": int(largest["point_x"]) - cx0 if include_point else "",
-            "point_y": int(largest["point_y"]) - cy0 if include_point else "",
-            "selection_used_annotation": False,
-        }
+    largest: dict[str, object] | None = None
+    crop_box: tuple[int, int, int, int] | None = None
+    if regions:
+        largest = max(regions, key=lambda row: int(row["selected_cell_count"]))
+        lx0, ly0, lx1, ly1 = largest["expanded_box_xyxy"]
+        crop_box = (
+            max(0, int(lx0) - crop_pad),
+            max(0, int(ly0) - crop_pad),
+            min(width, int(lx1) + crop_pad),
+            min(height, int(ly1) + crop_pad),
+        )
+        cx0, cy0, cx1, cy1 = crop_box
+        crop_dir = args.output_dir / "largest_gap_crop"
+        crop_dir.mkdir(parents=True, exist_ok=True)
+        Image.fromarray(he[cy0:cy1, cx0:cx1]).save(crop_dir / "R7_he_crop.png")
+        Image.fromarray(ficture[cy0:cy1, cx0:cx1]).save(
+            crop_dir / "R7_ficture_crop.png"
+        )
+        for name, box_key, include_point in prompt_variants:
+            x0, y0, x1, y1 = largest[box_key]
+            crop_prompt = {
+                "prompt_id": f"{name}_{largest['region_id']}",
+                "region_id": largest["region_id"],
+                "box_x1": int(x0) - cx0,
+                "box_y1": int(y0) - cy0,
+                "box_x2": int(x1) - cx0,
+                "box_y2": int(y1) - cy0,
+                "point_x": int(largest["point_x"]) - cx0 if include_point else "",
+                "point_y": int(largest["point_y"]) - cy0 if include_point else "",
+                "selection_used_annotation": False,
+            }
+            write_csv(
+                crop_dir / f"prompts_{name}.csv",
+                [crop_prompt],
+                prompt_fields,
+            )
+            crop_prompts[name] = crop_prompt
+
         write_csv(
-            crop_dir / f"prompts_{name}.csv",
-            [crop_prompt],
+            crop_dir / "prompts_expanded20_30_40_box.csv",
+            [crop_prompts[f"expanded{percentage}_box"] for percentage in (20, 30, 40)],
             prompt_fields,
         )
-        crop_prompts[name] = crop_prompt
-
-    write_csv(
-        crop_dir / "prompts_expanded20_30_40_box.csv",
-        [crop_prompts[f"expanded{percentage}_box"] for percentage in (20, 30, 40)],
-        prompt_fields,
-    )
-    write_csv(
-        crop_dir / "prompts_expanded20_30_40_box_point.csv",
-        [
-            crop_prompts[f"expanded{percentage}_box_point"]
-            for percentage in (20, 30, 40)
-        ],
-        prompt_fields,
-    )
+        write_csv(
+            crop_dir / "prompts_expanded20_30_40_box_point.csv",
+            [
+                crop_prompts[f"expanded{percentage}_box_point"]
+                for percentage in (20, 30, 40)
+            ],
+            prompt_fields,
+        )
 
     region_crop_manifest: list[dict[str, object]] = []
     region_crop_root = args.output_dir / "region_crops"
@@ -539,6 +547,7 @@ def main() -> None:
                 "selection_used_annotation": False,
             }
         )
+    region_crop_root.mkdir(parents=True, exist_ok=True)
     (region_crop_root / "manifest.json").write_text(
         json.dumps(region_crop_manifest, indent=2), encoding="utf-8"
     )
@@ -574,7 +583,9 @@ def main() -> None:
         "minimum_connected_cells": args.min_region_cells,
         "box_expansion_fraction": args.box_expansion,
         "detected_region_count": len(regions),
-        "largest_detected_region": {
+        "largest_detected_region": None
+        if largest is None
+        else {
             "region_id": largest["region_id"],
             "tight_box_xyxy": largest["tight_box_xyxy"],
             "point_xy": [largest["point_x"], largest["point_y"]],

@@ -149,10 +149,32 @@ def main() -> None:
 
     ficture_rows = selected_by_method(args.sam_root, "ficture", args.method)
     he_rows = selected_by_method(args.sam_root, "he", args.method)
-    if [int(row["prompt_index"]) for row in ficture_rows] != [
-        int(row["prompt_index"]) for row in he_rows
-    ]:
-        raise RuntimeError("FICTURE and H&E prompt indices differ")
+    ficture_manifest = json.loads(
+        (args.sam_root / "ficture/run_manifest.json").read_text(encoding="utf-8")
+    )
+    he_manifest = json.loads(
+        (args.sam_root / "he/run_manifest.json").read_text(encoding="utf-8")
+    )
+    prompt_count = int(ficture_manifest["prompt_count"])
+    if int(he_manifest["prompt_count"]) != prompt_count:
+        raise RuntimeError("FICTURE and H&E prompt counts differ")
+    ficture_by_prompt = {int(row["prompt_index"]): row for row in ficture_rows}
+    he_by_prompt = {int(row["prompt_index"]): row for row in he_rows}
+    if len(ficture_by_prompt) != len(ficture_rows):
+        raise RuntimeError("Duplicate FICTURE prompt indices")
+    if len(he_by_prompt) != len(he_rows):
+        raise RuntimeError("Duplicate H&E prompt indices")
+    valid_prompt_indices = set(range(prompt_count))
+    if not set(ficture_by_prompt).issubset(valid_prompt_indices):
+        raise RuntimeError("FICTURE contains an out-of-range prompt index")
+    if not set(he_by_prompt).issubset(valid_prompt_indices):
+        raise RuntimeError("H&E contains an out-of-range prompt index")
+    ficture_audit_by_prompt = {
+        int(row["prompt_index"]): row
+        for row in read_csv(args.sam_root / "ficture/prompt_audit.csv")
+    }
+    if set(ficture_audit_by_prompt) != valid_prompt_indices:
+        raise RuntimeError("FICTURE prompt audit does not cover every prompt exactly once")
 
     first_mask = load_mask(Path(ficture_rows[0]["resolved_mask_path"]))
     ficture_union = np.zeros(first_mask.shape, dtype=bool)
@@ -161,9 +183,110 @@ def main() -> None:
 
     pair_rows: list[dict[str, Any]] = []
     pre_dedup: list[dict[str, Any]] = []
-    for ficture_row, he_row in zip(ficture_rows, he_rows):
-        prompt_index = int(ficture_row["prompt_index"])
+    for prompt_index in range(prompt_count):
+        ficture_row = ficture_by_prompt.get(prompt_index)
+        he_row = he_by_prompt.get(prompt_index)
+        if ficture_row is None:
+            prompt_meta = ficture_audit_by_prompt[prompt_index]
+            if he_row is None:
+                pair_rows.append(
+                    {
+                        "prompt_index": prompt_index,
+                        "prompt_id": prompt_meta["prompt_id"],
+                        "gene_module": prompt_meta["gene_module"],
+                        "ficture_area": "",
+                        "he_area": "",
+                        "shared_pixels": "",
+                        "ficture_to_he_purity": "",
+                        "he_to_ficture_purity": "",
+                        "pair_iou": "",
+                        "he_new_pixels_against_all_ficture": "",
+                        "he_new_fraction_against_all_ficture": "",
+                        "same_prompt_he_retained": False,
+                        "same_prompt_he_threshold": HE_NOVELTY_THRESHOLD,
+                        "same_prompt_he_status": "no eligible FICTURE or H&E mask for this prompt",
+                        "selection_used_annotation": False,
+                    }
+                )
+                continue
+            he_mask = load_mask(Path(he_row["resolved_mask_path"]))
+            new_he = int(np.logical_and(he_mask, ~ficture_union).sum())
+            he_new_fraction = new_he / max(1, int(he_mask.sum()))
+            keep_he = he_new_fraction >= HE_NOVELTY_THRESHOLD
+            pair_rows.append(
+                {
+                    "prompt_index": prompt_index,
+                    "prompt_id": prompt_meta["prompt_id"],
+                    "gene_module": prompt_meta["gene_module"],
+                    "ficture_area": "",
+                    "he_area": int(he_mask.sum()),
+                    "shared_pixels": "",
+                    "ficture_to_he_purity": "",
+                    "he_to_ficture_purity": "",
+                    "pair_iou": "",
+                    "he_new_pixels_against_all_ficture": new_he,
+                    "he_new_fraction_against_all_ficture": he_new_fraction,
+                    "same_prompt_he_retained": keep_he,
+                    "same_prompt_he_threshold": HE_NOVELTY_THRESHOLD,
+                    "same_prompt_he_status": (
+                        "no eligible FICTURE primary; available H&E mask evaluated by the 40% new-area rule"
+                    ),
+                    "selection_used_annotation": False,
+                }
+            )
+            if keep_he:
+                pre_dedup.append(
+                    {
+                        "candidate_id": f"{args.tma}:HE_SAME:P{prompt_index + 1:03d}",
+                        "source": "Same-prompt H&E supplement",
+                        "prompt_index": prompt_index,
+                        "prompt_id": he_row["prompt_id"],
+                        "gene_module": he_row["gene_module"],
+                        "source_mask_path": he_row["resolved_mask_path"],
+                        "sam_score": he_row["sam_score"],
+                        "selection_method": args.method,
+                        "selection_reason": "At least 40% of this H&E mask lies outside the complete FICTURE-primary pool.",
+                        "selection_used_annotation": False,
+                    }
+                )
+            continue
+
         ficture_mask = load_mask(Path(ficture_row["resolved_mask_path"]))
+        if he_row is None:
+            pair_rows.append(
+                {
+                    "prompt_index": prompt_index,
+                    "prompt_id": ficture_row["prompt_id"],
+                    "gene_module": ficture_row["gene_module"],
+                    "ficture_area": int(ficture_mask.sum()),
+                    "he_area": "",
+                    "shared_pixels": "",
+                    "ficture_to_he_purity": "",
+                    "he_to_ficture_purity": "",
+                    "pair_iou": "",
+                    "he_new_pixels_against_all_ficture": "",
+                    "he_new_fraction_against_all_ficture": "",
+                    "same_prompt_he_retained": False,
+                    "same_prompt_he_threshold": HE_NOVELTY_THRESHOLD,
+                    "same_prompt_he_status": "no eligible H&E mask containing the positive point",
+                    "selection_used_annotation": False,
+                }
+            )
+            pre_dedup.append(
+                {
+                    "candidate_id": f"{args.tma}:FICTURE:P{prompt_index + 1:03d}",
+                    "source": "FICTURE primary",
+                    "prompt_index": prompt_index,
+                    "prompt_id": ficture_row["prompt_id"],
+                    "gene_module": ficture_row["gene_module"],
+                    "source_mask_path": ficture_row["resolved_mask_path"],
+                    "sam_score": ficture_row["sam_score"],
+                    "selection_method": args.method,
+                    "selection_reason": "Primary candidate from the fixed GeneMap box+point prompt.",
+                    "selection_used_annotation": False,
+                }
+            )
+            continue
         he_mask = load_mask(Path(he_row["resolved_mask_path"]))
         shared = int(np.logical_and(ficture_mask, he_mask).sum())
         union = int(ficture_mask.sum()) + int(he_mask.sum()) - shared
@@ -185,6 +308,7 @@ def main() -> None:
                 "he_new_fraction_against_all_ficture": he_new_fraction,
                 "same_prompt_he_retained": keep_he,
                 "same_prompt_he_threshold": HE_NOVELTY_THRESHOLD,
+                "same_prompt_he_status": "eligible H&E mask evaluated by the 40% new-area rule",
                 "selection_used_annotation": False,
             }
         )
@@ -262,10 +386,13 @@ def main() -> None:
     manifest = {
         "tma": args.tma,
         "main_selection_method": args.method,
-        "main_prompt_count": len(ficture_rows),
+        "main_prompt_count": prompt_count,
         "ficture_primary_count": len(ficture_rows),
+        "ficture_missing_count": prompt_count - len(ficture_rows),
         "same_prompt_he_rule": "retain when at least 40% of H&E mask area lies outside the complete FICTURE-primary union",
         "same_prompt_he_threshold": HE_NOVELTY_THRESHOLD,
+        "same_prompt_he_available_count": len(he_rows),
+        "same_prompt_he_missing_count": prompt_count - len(he_rows),
         "independent_he_rule": "64-pixel cells; H&E tissue >=35%; FICTURE signal <=8%; at least 6 connected cells; 10% context box plus one automatic positive point",
         "independent_he_detected_count": len(gap_rows),
         "pre_dedup_count": len(pre_dedup),

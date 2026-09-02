@@ -388,7 +388,29 @@ def main() -> None:
                 eligible_rows.append(row)
 
         if not eligible_rows:
-            raise RuntimeError(f"Prompt {prompt_id} produced no eligible internal mask")
+            prompt_audit.append(
+                {
+                    "source": args.source,
+                    "prompt_index": prompt_index,
+                    "prompt_id": prompt_id,
+                    "gene_module": module_number,
+                    "model_mask_count": model_count,
+                    "eligible_unique_mask_count": 0,
+                    **rejection_counts,
+                    "no_selected_mask_reason": (
+                        "no mask survived the fixed positive-point, foreground, area, and duplicate checks"
+                    ),
+                    "selection_used_annotation": False,
+                }
+            )
+            print(
+                f"[{prompt_index + 1:02d}/{len(prompts)}] {args.source} {prompt_id}: "
+                f"model={model_count} eligible_unique=0; recorded without a selected candidate",
+                flush=True,
+            )
+            del state, raw_masks, raw_scores, eligible_masks, support
+            gc.collect()
+            continue
         save_packed_prompt_masks(
             packed_dir / f"{prompt_id}.npz", eligible_masks, eligible_rows
         )
@@ -448,6 +470,16 @@ def main() -> None:
         "inference_entrypoint": "sam3.processor._forward_grounding",
         "total_model_masks": sum(row["model_mask_count"] for row in prompt_audit),
         "total_eligible_unique_masks": len(all_rows),
+        "selected_prompt_count": len(
+            {
+                int(row["prompt_index"])
+                for row in selected_rows
+                if row["selection_method"] == "genemap_support_f1"
+            }
+        ),
+        "prompts_without_eligible_mask": sum(
+            int(row["eligible_unique_mask_count"]) == 0 for row in prompt_audit
+        ),
         "selection_methods": list(SELECTION_METHODS),
         "selection_used_annotation": False,
         "positive_point_required": True,

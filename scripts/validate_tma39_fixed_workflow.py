@@ -19,6 +19,17 @@ def parse_args() -> argparse.Namespace:
         default=Path("config/tma39_fixed_workflow_v1.json"),
     )
     parser.add_argument("--run-root", type=Path)
+    parser.add_argument(
+        "--stage",
+        choices=("pre-vlm", "vlm"),
+        default="vlm",
+        help="Validate through the frozen candidate pool or through the six-view VLM bundle.",
+    )
+    parser.add_argument(
+        "--input-audit",
+        type=Path,
+        help="Optional ten-TMA input audit used to verify registered input hashes.",
+    )
     return parser.parse_args()
 
 
@@ -71,7 +82,13 @@ def validate_contract(contract: dict[str, Any]) -> None:
     require(contract["vlm"]["views_per_candidate"] == 6, "VLM must receive six views")
 
 
-def validate_run(root: Path, contract: dict[str, Any]) -> dict[str, Any]:
+def validate_run(
+    root: Path,
+    contract: dict[str, Any],
+    *,
+    stage: str,
+    input_audit_path: Path | None,
+) -> dict[str, Any]:
     gene = read_json(root / "genemap_scores/summary.json")
     prompts = read_json(root / "prompts/final_sustained_edge3/adaptive_prompt_manifest.json")
     prompt_csv = root / "prompts/final_sustained_edge3/adaptive_box_peak_sustained_edge3_context0.csv"
@@ -79,8 +96,8 @@ def validate_run(root: Path, contract: dict[str, Any]) -> dict[str, Any]:
     ficture = read_json(root / "sam3_main/ficture/run_manifest.json")
     he = read_json(root / "sam3_main/he/run_manifest.json")
     independent = read_json(root / "sam3_independent_he_gap/run_manifest.json")
+    gap_prompts = read_json(root / "independent_he_gap_detection/prompt_manifest.json")
     pool = read_json(root / "frozen_pool/run_manifest.json")
-    bundle = read_json(root / "vlm_bundle/run_manifest.json")
 
     expected_prompts = int(prompts["prompt_count"])
     require(gene["fixed_gene_count"] == 120 and gene["active_gene_count"] == 120, "Gene count changed")
@@ -103,20 +120,75 @@ def validate_run(root: Path, contract: dict[str, Any]) -> dict[str, Any]:
         require(manifest["positive_point_required"] is True, f"{source} must require the point")
         require(manifest["selection_used_annotation"] is False, f"Annotation leaked into {source} selection")
 
+    ficture_selected = [
+        row
+        for row in read_csv(root / "sam3_main/ficture/selected_candidates.csv")
+        if row["selection_method"] == "genemap_support_f1"
+    ]
+    he_selected = [
+        row
+        for row in read_csv(root / "sam3_main/he/selected_candidates.csv")
+        if row["selection_method"] == "genemap_support_f1"
+    ]
+    require(len(ficture_selected) <= expected_prompts, "FICTURE selected-mask count exceeds prompt count")
+    require(len(he_selected) <= expected_prompts, "H&E selected-mask count exceeds prompt count")
+    require(
+        ficture.get("prompts_without_eligible_mask", 0) == expected_prompts - len(ficture_selected),
+        "FICTURE missing-mask count is not fully audited",
+    )
+    require(
+        he.get("prompts_without_eligible_mask", 0) == expected_prompts - len(he_selected),
+        "H&E missing-mask count is not fully audited",
+    )
+
     require(independent["expansion_percent_per_side"] == 10, "Independent H&E context must be 10%")
     require(independent["inference_calls_per_prompt"] == 1, "Independent H&E must have one call per prompt")
     require(independent["selection_used_annotation"] is False, "Annotation leaked into independent H&E selection")
+    require(gap_prompts["cell_size_px"] == 64, "Independent H&E cell size changed")
+    require(gap_prompts["min_he_tissue_fraction"] == 0.35, "Independent H&E tissue threshold changed")
+    require(gap_prompts["max_ficture_signal_fraction"] == 0.08, "Independent H&E FICTURE threshold changed")
+    require(gap_prompts["minimum_connected_cells"] == 6, "Independent H&E connection rule changed")
+    require(gap_prompts["box_expansion_fraction"] == 0.1, "Independent H&E context changed")
+    require(gap_prompts["detected_region_count"] == independent["prompt_count"], "Independent H&E prompt count mismatch")
     require(pool["main_prompt_count"] == expected_prompts, "Pool prompt count mismatch")
-    require(pool["ficture_primary_count"] == expected_prompts, "Every FICTURE primary must be retained")
+    require(pool["ficture_primary_count"] == len(ficture_selected), "Pool FICTURE count mismatch")
+    require(
+        pool.get("ficture_missing_count", 0) == expected_prompts - len(ficture_selected),
+        "Pool did not preserve the audited FICTURE no-output count",
+    )
+    require(
+        pool.get("same_prompt_he_missing_count", 0) == expected_prompts - len(he_selected),
+        "Pool did not preserve the audited H&E no-output count",
+    )
     require(pool["same_prompt_he_threshold"] == 0.4, "Same-prompt H&E threshold changed")
     require(pool["dedup_iou_threshold"] == 0.9, "Pool deduplication threshold changed")
     require(pool["selection_used_annotation"] is False, "Annotation leaked into pool selection")
-    require(bundle["candidate_count"] == pool["final_candidate_count"], "VLM bundle count differs from pool")
-    require(bundle["image_count_per_candidate"] == 6, "VLM input count changed")
+    factor_info = root / "staging/factor_info.csv"
+    if not factor_info.is_file() and stage == "vlm":
+        factor_info = root / "vlm_bundle/assets/factor_info.csv"
     require(
-        bundle["input_hashes"]["factor_info"] == contract["inputs"]["factor_legend_sha256"],
+        sha256(factor_info) == contract["inputs"]["factor_legend_sha256"],
         "FICTURE RGB legend changed",
     )
+
+    if input_audit_path:
+        input_audit = read_json(input_audit_path)
+        matches = [row for row in input_audit["tmas"] if row["tma"] == pool["tma"]]
+        require(len(matches) == 1, "TMA missing or duplicated in input audit")
+        expected_input = matches[0]
+        he_path = root / "staging" / f"{pool['tma']}_he.png"
+        ficture_path = root / "staging" / f"{pool['tma']}_ficture.png"
+        require(sha256(he_path) == expected_input["he_sha256"], "Registered H&E hash changed")
+        require(sha256(ficture_path) == expected_input["ficture_sha256"], "Raw FICTURE hash changed")
+
+    if stage == "vlm":
+        bundle = read_json(root / "vlm_bundle/run_manifest.json")
+        require(bundle["candidate_count"] == pool["final_candidate_count"], "VLM bundle count differs from pool")
+        require(bundle["image_count_per_candidate"] == 6, "VLM input count changed")
+        require(
+            bundle["input_hashes"]["factor_info"] == contract["inputs"]["factor_legend_sha256"],
+            "FICTURE RGB legend changed",
+        )
 
     final_rows = read_csv(root / "frozen_pool/final_pool.csv")
     require(len(final_rows) == pool["final_candidate_count"], "Final pool CSV count mismatch")
@@ -134,6 +206,7 @@ def validate_run(root: Path, contract: dict[str, Any]) -> dict[str, Any]:
         "final_candidates": pool["final_candidate_count"],
         "source_counts": pool["final_source_counts"],
         "selection_used_annotation": False,
+        "validated_stage": stage,
         "status": "valid",
     }
 
@@ -144,7 +217,12 @@ def main() -> None:
     validate_contract(contract)
     result: dict[str, Any] = {"workflow_id": contract["workflow_id"], "contract": "valid"}
     if args.run_root:
-        result["run"] = validate_run(args.run_root.resolve(), contract)
+        result["run"] = validate_run(
+            args.run_root.resolve(),
+            contract,
+            stage=args.stage,
+            input_audit_path=args.input_audit.resolve() if args.input_audit else None,
+        )
     print(json.dumps(result, indent=2, sort_keys=True))
 
 

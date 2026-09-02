@@ -83,8 +83,6 @@ def main() -> None:
     selected_mask_dir.mkdir()
 
     prompt_rows = read_csv(args.prompt_csv)
-    if not prompt_rows:
-        raise RuntimeError("No independent H&E-gap prompts were provided")
     prompt_by_region = {row["region_id"]: row for row in prompt_rows}
     if len(prompt_by_region) != len(prompt_rows):
         raise RuntimeError("Independent H&E-gap region IDs are not unique")
@@ -98,6 +96,51 @@ def main() -> None:
     if he_full.shape != ficture_full.shape:
         raise RuntimeError("Registered H&E and FICTURE shapes differ")
     full_shape = he_full.shape[:2]
+
+    if not prompt_rows:
+        result_fields = [
+            "tma", "region_id", "prompt_index", "prompt_type", "box_x1_full",
+            "box_y1_full", "box_x2_full", "box_y2_full", "point_x_full",
+            "point_y_full", "model_mask_count", "prompt_consistent_unique_mask_count",
+            "rank_by_sam_score", "model_index", "sam_score", "area_pixels",
+            "threshold_stability_offset0p5", "threshold_stability_offset1p0",
+            "selected_by_blind_rule", "selection_used_annotation", "local_mask_path",
+        ]
+        selected_fields = result_fields + ["selected_mask_path", "selection_rule"]
+        with (args.output_dir / "supplement_all_results.csv").open(
+            "w", newline="", encoding="utf-8"
+        ) as handle:
+            csv.DictWriter(handle, fieldnames=result_fields).writeheader()
+        with (args.output_dir / "selected_candidates.csv").open(
+            "w", newline="", encoding="utf-8"
+        ) as handle:
+            csv.DictWriter(handle, fieldnames=selected_fields).writeheader()
+        manifest = {
+            "tma": args.tma,
+            "prompt_count": 0,
+            "selected_candidate_count": 0,
+            "prompt_type_for_every_region": "10% context box plus one automatic positive point",
+            "expansion_percent_per_side": args.expansion_percent,
+            "image_encoding_count": 0,
+            "inference_calls_per_prompt": 1,
+            "total_inference_calls": 0,
+            "selection_rule": "highest SAM score among unique masks containing the positive point",
+            "selection_used_annotation": False,
+            "checkpoint_path": str(args.checkpoint),
+            "checkpoint_sha256": sha256(args.checkpoint),
+            "he_image_path": str(args.he_image),
+            "he_image_sha256": sha256(args.he_image),
+            "ficture_image_path": str(args.ficture_image),
+            "ficture_image_sha256": sha256(args.ficture_image),
+            "prompt_csv_path": str(args.prompt_csv),
+            "prompt_csv_sha256": sha256(args.prompt_csv),
+            "zero_prompt_result": True,
+        }
+        (args.output_dir / "run_manifest.json").write_text(
+            json.dumps(manifest, indent=2), encoding="utf-8"
+        )
+        print(json.dumps(manifest, indent=2), flush=True)
+        return
 
     sam3 = SAM3Model(
         confidence_threshold=0.1,

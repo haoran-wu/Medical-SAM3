@@ -22,6 +22,8 @@ import numpy as np
 from PIL import Image, ImageDraw
 from scipy import ndimage as ndi
 
+from tma39_report_style import REPORT_TEMPLATE_ID, STYLE as REFERENCE_STYLE
+
 
 Image.MAX_IMAGE_PIXELS = None
 
@@ -135,6 +137,49 @@ def module_green_image(score: np.ndarray, tissue: np.ndarray, max_side: int = 11
     scale = max_side / max(image.size)
     size = (max(1, round(image.width * scale)), max(1, round(image.height * scale)))
     return image.resize(size, Image.Resampling.NEAREST)
+
+
+def module_composite_uri(
+    tma: str,
+    shown_scores: np.ndarray,
+    tissue: np.ndarray,
+    counts: Counter[int],
+) -> str:
+    figure, axes = plt.subplots(3, 3, figsize=(15.2, 15.2), facecolor="white")
+    for module, axis in enumerate(axes.flat, start=1):
+        axis.imshow(module_green_image(shown_scores[module - 1], tissue, max_side=900))
+        axis.set_title(f"Module {module} · {counts[module]} prompt regions", fontsize=12.5, fontweight="bold")
+        axis.axis("off")
+    figure.suptitle(f"{tma}: all nine fixed GeneMap modules", fontsize=19, fontweight="bold")
+    figure.tight_layout(rect=(0, 0, 1, 0.965), pad=1.1)
+    return figure_uri(figure, dpi=190)
+
+
+def region_overlay(
+    background: Image.Image,
+    labels: np.ndarray,
+    *,
+    max_side: int = 1420,
+) -> Image.Image:
+    shown = resize_for_report(background, max_side, nearest=False)
+    base = np.asarray(shown, dtype=np.float32)
+    base = base * 0.54 + 255.0 * 0.46
+    colored = np.zeros_like(base)
+    occupied = np.zeros((shown.height, shown.width), dtype=bool)
+    for module in range(1, 10):
+        module_mask = labels[module - 1] > 0
+        resized = np.asarray(
+            Image.fromarray(module_mask.astype(np.uint8) * 255).resize(
+                shown.size, Image.Resampling.NEAREST
+            )
+        ) > 0
+        color = np.asarray(hex_rgb(MODULE_COLORS[module - 1]), dtype=np.float32)
+        colored[resized] = color
+        occupied |= resized
+    base[occupied] = base[occupied] * 0.26 + colored[occupied] * 0.74
+    boundary = np.logical_and(occupied, ~ndi.binary_erosion(occupied, iterations=2))
+    base[boundary] = (24, 35, 41)
+    return Image.fromarray(np.uint8(np.clip(base, 0, 255)))
 
 
 def distribution_figure(
@@ -273,6 +318,20 @@ def factor_table(rows: list[dict[str, str]]) -> str:
     return table(["Factor", "Fixed RGB anchor", "Marker-inferred cell type", "Example genes"], body)
 
 
+def factor_cards(rows: list[dict[str, str]]) -> str:
+    cards = []
+    for row in sorted(rows, key=lambda item: int(item["Factor"])):
+        genes = [value.strip() for value in row["TopGene_specific"].split(",") if value.strip()][:3]
+        cards.append(
+            "<div class='factor'>"
+            f"<i style='background:{html.escape(row['hex'])}'></i><div>"
+            f"<b>Factor {html.escape(row['Factor'])}: {html.escape(row['Celltype2'])}</b>"
+            f"<small>{html.escape(row['hex'].upper())} · {html.escape(', '.join(genes))}</small>"
+            "</div></div>"
+        )
+    return "".join(cards)
+
+
 def selected_rows(root: Path, source: str) -> list[dict[str, str]]:
     rows = [
         row
@@ -297,6 +356,11 @@ def main() -> None:
     gap_sam_manifest = json.loads((root / "sam3_independent_he_gap/run_manifest.json").read_text())
     pool_manifest = json.loads((root / "frozen_pool/run_manifest.json").read_text())
     tma = pool_manifest["tma"]
+    support_manifest = json.loads(
+        (root / "staging" / f"{tma}_blind_he_tissue_support.json").read_text()
+    )
+    if support_manifest.get("method") != "registered_he_color_threshold_components_v1":
+        raise RuntimeError("H&E foreground-support method differs from fixed TMA39")
 
     prompt_rows = read_csv(root / "prompts/final_sustained_edge3/adaptive_box_peak_sustained_edge3_context0.csv")
     threshold_rows = read_csv(root / "prompts/adaptive_base/module_thresholds.csv")
@@ -347,13 +411,20 @@ def main() -> None:
         raise RuntimeError("Unexpected GeneMap module shape")
     module_counts: Counter[int] = Counter(int(row["gene_module"]) for row in prompt_rows)
     thresholds = {int(row["gene_module"]): float(row["top5_threshold"]) for row in threshold_rows}
+    region_labels = np.load(
+        root / "prompts/final_sustained_edge3/adaptive_region_labels.npz"
+    )["labels"].astype(np.int16)
+    if region_labels.shape != raw_scores.shape:
+        raise RuntimeError("GeneMap region labels do not match module-score geometry")
 
     module_uris = [image_uri(module_green_image(shown_scores[index], tissue), "PNG") for index in range(9)]
+    module_composite = module_composite_uri(tma, shown_scores, tissue, module_counts)
     distribution_uri = distribution_figure(tma, raw_scores, tissue, thresholds, module_counts)
     overview_he_uri = image_uri(resize_for_report(he_image, 1420, nearest=False), "JPEG", 90)
     overview_ficture_uri = image_uri(resize_for_report(ficture_image, 1420, nearest=True), "PNG")
     prompt_he_uri = image_uri(prompt_overlay(he_image, prompt_rows, ficture=False), "JPEG", 90)
     prompt_ficture_uri = image_uri(prompt_overlay(ficture_image, prompt_rows, ficture=True), "PNG")
+    genemap_regions_uri = image_uri(region_overlay(he_image, region_labels), "JPEG", 91)
 
     ficture_map_uri = image_uri(
         mask_overlay(
@@ -414,16 +485,38 @@ def main() -> None:
     merged_count = sum(int(row["old_region_count"]) - 1 for row in merge_rows)
     dedup_removed = int(pool_manifest["removed_as_near_duplicate"])
     source_counts = pool_manifest["final_source_counts"]
+    same_prompt_pool = [row for row in pool_rows if row["source"] == "Same-prompt H&E supplement"]
+    independent_pool = [row for row in pool_rows if row["source"] == "Independent H&E supplement"]
+    same_prompt_pool_uri = image_uri(
+        mask_overlay(
+            he_image,
+            same_prompt_pool,
+            lambda row: root / "frozen_pool" / row["mask_path"],
+        ),
+        "JPEG",
+        90,
+    )
+    independent_pool_uri = image_uri(
+        mask_overlay(
+            he_image,
+            independent_pool,
+            lambda row: root / "frozen_pool" / row["mask_path"],
+        ),
+        "JPEG",
+        90,
+    )
 
     candidate_payload = []
     for index, row in enumerate(pool_rows, start=1):
         mask = load_binary(root / "frozen_pool" / row["mask_path"])
+        module = row["gene_module"] or "none"
         if row["source"] == "FICTURE primary":
             color_hex = MODULE_COLORS[int(row["gene_module"]) - 1]
-            source_label = f"FICTURE primary, Module {row['gene_module']}"
         else:
             color_hex = SOURCE_COLORS[row["source"]]
-            source_label = row["source"]
+        source_label = row["source"]
+        if module != "none":
+            source_label += f", Module {module}"
         color = hex_rgb(color_hex)
         candidate_payload.append(
             {
@@ -431,7 +524,7 @@ def main() -> None:
                 "candidate_id": row["candidate_id"],
                 "source": row["source"],
                 "source_label": source_label,
-                "module": row["gene_module"] or "none",
+                "module": module,
                 "area": int(row["area_pixels"]),
                 "sam_score": float(row["sam_score"]),
                 "he": image_uri(candidate_crop(he_image, mask, color, ficture=False), "JPEG", 87),
@@ -439,7 +532,7 @@ def main() -> None:
             }
         )
 
-    factor_table_html = factor_table(factor_rows)
+    factor_cards_html = factor_cards(factor_rows)
     module_cards = "".join(
         f"<figure class='module-card'><h3>Module {index + 1}</h3><button class='image-button' data-image='{uri}' data-title='{tma} Module {index + 1}'><img src='{uri}' alt='{tma} GeneMap Module {index + 1}'></button><figcaption>{module_counts[index + 1]} final prompt regions</figcaption></figure>"
         for index, uri in enumerate(module_uris)
@@ -462,22 +555,29 @@ def main() -> None:
     if any(item["module"] == "none" for item in candidate_payload):
         module_filter_options += "<option value='none'>No GeneMap module</option>"
 
-    css = """
-:root{--ink:#18242a;--muted:#5d6b72;--line:#d7e0e3;--panel:#f6f8f8;--accent:#006b62;--warn:#fff4d6}*{box-sizing:border-box}body{margin:0;background:#fff;color:var(--ink);font-family:Arial,Helvetica,sans-serif;line-height:1.52;letter-spacing:0}main{max-width:1500px;margin:auto;padding:30px 34px 70px}header{border-bottom:3px solid var(--ink);padding-bottom:22px;margin-bottom:24px}.eyebrow{margin:0 0 8px;color:var(--accent);font-weight:800;text-transform:uppercase;font-size:13px}h1{font-size:38px;line-height:1.12;margin:0 0 12px}h2{font-size:25px;margin:0 0 14px}h3{font-size:18px;margin:0 0 10px}.lead{font-size:18px;max-width:1050px;color:#435159}.metrics{display:grid;grid-template-columns:repeat(6,minmax(0,1fr));gap:10px;margin-top:18px}.metric{border-top:4px solid var(--accent);background:var(--panel);padding:13px 12px;min-height:92px}.metric b{display:block;font-size:27px}.metric span{font-size:13px;color:var(--muted)}section{padding:26px 0;border-bottom:1px solid var(--line);min-width:0}.flow{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:10px}.flow div{border:1px solid var(--line);padding:14px;min-height:126px}.flow b{display:block;margin-bottom:6px}.stage{display:block;margin-top:9px;color:var(--accent);font-size:12px;font-weight:bold}.planned{background:#f2f4f5;color:#536067}.grid2{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:16px}.grid3{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:12px}.modules{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:12px}figure{margin:0;border:1px solid var(--line);background:#fff;padding:12px}figure img{display:block;width:100%;height:auto;max-width:100%}.module-card img{image-rendering:pixelated;object-fit:contain;background:#000}.image-button{display:block;width:100%;padding:0;border:0;background:none;cursor:zoom-in}.note{margin-top:14px;padding:13px 15px;border-left:4px solid var(--accent);background:#eef7f5}.note code{overflow-wrap:anywhere;word-break:break-all}.warning{background:var(--warn);border-color:#d59b00}.formula{border:1px solid var(--line);padding:14px;background:var(--panel)}.legend{display:flex;flex-wrap:wrap;gap:8px 16px;margin:12px 0}.legend span{display:flex;align-items:center;font-size:13px}.legend i,.swatch{display:inline-block;width:17px;height:17px;margin-right:7px;border:1px solid #707b80;vertical-align:middle}.table-wrap{overflow:auto;border:1px solid var(--line);max-width:100%}table{border-collapse:collapse;width:100%;font-size:13px}th,td{padding:9px 10px;border-bottom:1px solid var(--line);text-align:left;vertical-align:top}th{background:#edf2f3;position:sticky;top:0}.viewer{display:grid;grid-template-columns:300px 1fr;gap:18px}.viewer aside{border:1px solid var(--line);padding:10px}.controls label{display:block;font-size:12px;font-weight:bold;margin-bottom:8px}.controls select{display:block;width:100%;margin-top:4px;padding:8px}.candidate-list{max-height:690px;overflow:auto}.candidate-button{display:block;width:100%;text-align:left;padding:9px;border:0;border-bottom:1px solid var(--line);background:#fff;cursor:pointer}.candidate-button.active{background:#dff1ed;border-left:4px solid var(--accent)}.candidate-button small{display:block;color:var(--muted)}.candidate-images{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:12px}.candidate-meta{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:8px;margin:10px 0}.candidate-meta div{background:var(--panel);padding:10px}.candidate-meta b,.candidate-meta span{display:block}.candidate-meta span{font-size:12px;color:var(--muted)}details{margin-top:12px;border:1px solid var(--line);max-width:100%;overflow:hidden}summary{cursor:pointer;font-weight:bold;padding:11px 13px;background:var(--panel)}.details-body{padding:13px;min-width:0}.audit{font-family:ui-monospace,SFMono-Regular,Menlo,monospace;font-size:12px;overflow-wrap:anywhere}.modal{display:none;position:fixed;z-index:10;inset:0;background:rgba(0,0,0,.82);padding:25px}.modal.open{display:flex;align-items:center;justify-content:center}.modal img{max-width:92vw;max-height:86vh;background:#fff}.modal button{position:absolute;right:20px;top:15px;border:0;background:#fff;font-size:27px;width:42px;height:42px;cursor:pointer}.modal p{position:absolute;left:24px;top:12px;color:#fff;font-weight:bold}.footer{margin-top:24px;color:var(--muted);font-size:12px}@media(max-width:900px){main{padding:20px 14px}.metrics,.flow{grid-template-columns:repeat(2,minmax(0,1fr))}.grid2,.grid3,.modules,.candidate-images{grid-template-columns:1fr}.viewer{grid-template-columns:1fr}.candidate-meta{grid-template-columns:repeat(2,minmax(0,1fr))}}
+    css = REFERENCE_STYLE + r"""
+.modules{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:12px}.module-card img{image-rendering:pixelated;object-fit:contain;background:#000}.image-button{display:block;width:100%;padding:0;border:0;background:none;cursor:zoom-in}.swatch{display:inline-block;width:17px;height:17px;margin-right:7px;border:1px solid #707b80;vertical-align:middle}.formula{border:1px solid var(--line);padding:14px;background:var(--soft)}details{margin-top:12px;border:1px solid var(--line);max-width:100%;overflow:hidden}summary{cursor:pointer;font-weight:bold;padding:11px 13px;background:var(--soft)}.details-body{padding:13px;min-width:0}.viewer{display:grid;grid-template-columns:300px 1fr;gap:18px}.viewer aside{border:1px solid var(--line);padding:10px}.controls label{display:block;font-size:12px;font-weight:bold;margin-bottom:8px}.controls select{display:block;width:100%;margin-top:4px;padding:8px}.candidate-list{max-height:690px;overflow:auto}.candidate-button{display:block;width:100%;text-align:left;padding:9px;border:0;border-bottom:1px solid var(--line);background:#fff;cursor:pointer}.candidate-button.active{background:#dff1ed;border-left:4px solid var(--teal)}.candidate-button small{display:block;color:var(--muted)}.candidate-images{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:12px}.candidate-meta{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:8px;margin:10px 0}.candidate-meta div{background:var(--soft);padding:10px}.candidate-meta b,.candidate-meta span{display:block}.candidate-meta span{font-size:12px;color:var(--muted)}.audit{font-family:ui-monospace,SFMono-Regular,Menlo,monospace;font-size:12px;overflow-wrap:anywhere}.modal{display:none;position:fixed;z-index:10;inset:0;background:rgba(0,0,0,.82);padding:25px}.modal.open{display:flex;align-items:center;justify-content:center}.modal img{max-width:92vw;max-height:86vh;background:#fff}.modal button{position:absolute;right:20px;top:15px;border:0;background:#fff;font-size:27px;width:42px;height:42px;cursor:pointer}.modal p{position:absolute;left:24px;top:12px;color:#fff;font-weight:bold}.pixelated{image-rendering:pixelated}.compact-flow{grid-template-columns:repeat(4,minmax(0,1fr))}@media(max-width:1050px){.modules{grid-template-columns:repeat(2,1fr)}.viewer{grid-template-columns:1fr}.candidate-meta{grid-template-columns:repeat(2,1fr)}}@media(max-width:700px){.modules,.candidate-images{grid-template-columns:1fr}}
 """
 
-    content = f"""<!doctype html><html lang='en'><head><meta charset='utf-8'><meta name='viewport' content='width=device-width,initial-scale=1'><title>{tma} Pre-VLM Workflow</title><style>{css}</style></head><body><main>
-<header><p class='eyebrow'>Verified pre-VLM result</p><h1>{tma}: Fixed GeneMap-to-SAM3 Workflow</h1><p class='lead'>This report applies the frozen TMA39 method without changing any TMA-specific parameter. It stops after the candidate pool is frozen and before any vision-language model is used.</p><div class='metrics'><div class='metric'><b>120</b><span>fixed genes</span></div><div class='metric'><b>9</b><span>fixed GeneMap modules</span></div><div class='metric'><b>{len(prompt_rows)}</b><span>GeneMap box-plus-point prompts</span></div><div class='metric'><b>{source_counts['FICTURE primary']}</b><span>FICTURE primary candidates</span></div><div class='metric'><b>{source_counts['Same-prompt H&E supplement']} + {source_counts['Independent H&E supplement']}</b><span>two H&amp;E supplement sources</span></div><div class='metric'><b>{len(pool_rows)}</b><span>frozen pre-VLM candidates</span></div></div></header>
-<section><h2>1. Complete workflow and current stopping point</h2><div class='flow'><div><b>1. Build GeneMaps</b>Place transcripts on this TMA and score the same nine frozen gene groups.<span class='stage'>Completed</span></div><div><b>2. Place prompts</b>One tight 0% box and one highest-score point for each GeneMap region.<span class='stage'>Completed</span></div><div><b>3. Run paired SAM3</b>Use every prompt once on raw FICTURE and once on registered H&amp;E.<span class='stage'>Completed</span></div><div><b>4. Add H&amp;E evidence</b>Keep same-prompt H&amp;E with at least 40% new area, then add independent H&amp;E gaps.<span class='stage'>Completed</span></div><div><b>5. Freeze the pool</b>Remove only masks with IoU at least 0.90. Do not union masks.<span class='stage'>Completed</span></div><div class='planned'><b>6. VLM classification</b>Classify each frozen candidate from close, medium, and full H&amp;E/FICTURE views.<span class='stage'>Not run in this report</span></div><div class='planned'><b>7. Class-grouped SAM</b>Send same-class boxes and points together for a second refinement.<span class='stage'>Planned after VLM</span></div><div class='planned'><b>8. Assemble the tissue map</b>Return refined class masks to the full TMA coordinates.<span class='stage'>Planned after VLM</span></div></div></section>
-<section><h2>2. Registered inputs and the fixed FICTURE color system</h2><p>Both images use the same {he_image.width} by {he_image.height} canvas. The FICTURE image is the K=12 strict-official affine-warped source used by TMA39. It is not smoothed or recolored, and every displayed resize uses nearest-neighbor sampling.</p><div class='grid2'><figure><h3>Registered H&amp;E</h3><img src='{overview_he_uri}' alt='{tma} registered H&E'><figcaption>Morphology input.</figcaption></figure><figure><h3>Registered K=12 strict-official raw FICTURE</h3><img src='{overview_ficture_uri}' alt='{tma} registered raw FICTURE' style='image-rendering:pixelated'><figcaption>Exact stored RGB image used by SAM3. Continuous mixture pixels may fall between the 12 anchor colors; no downstream recoloring was applied.</figcaption></figure></div><h3>One fixed 12-factor RGB legend for every TMA</h3>{factor_table_html}<div class='note'><b>Consistency check:</b> the shared legend SHA-256 is <code>{EXPECTED_FACTOR_INFO_SHA256}</code>. This TMA's H&amp;E and FICTURE hashes match the ten-TMA input audit.</div></section>
-<section><h2>3. The same nine GeneMap modules on {tma}</h2><p>The genes are not clustered again for this TMA. Each module score is the average standardized expression of its already assigned genes at one spatial bin. A brighter green bin means that module is stronger at that location.</p><div class='modules'>{module_cards}</div>{module_table_html}<details><summary>How the nine modules were fixed</summary><div class='details-body'><p>TMA39 gene maps were compared with Pearson correlation. Genes bright in the same tissue locations have a small distance, defined as <code>1 - correlation</code>. Average-linkage hierarchical clustering was tested with four through ten groups. Nine groups separated similar and different spatial maps most clearly among those choices, so that membership was frozen and reused here.</p></div></details></section>
-<section><h2>4. From module scores to the actual boxes and points</h2><p>Each histogram summarizes one module across this TMA. The horizontal axis is the module score at one tissue bin. The vertical axis is how many tissue bins fall in that score interval. The red dashed line is the module-specific 95th percentile, so the highest-scoring 5% lie to its right and define the possible region extent.</p><figure><img src='{distribution_uri}' alt='{tma} module score distributions'><figcaption>Top 1% bins identify strong centers, connected top 2.5% bins confirm local support, and connected top 5% bins define each box extent.</figcaption></figure><div class='grid3'><div class='formula'><b>Center</b><br>top 1% module-score bins</div><div class='formula'><b>Connection</b><br>connected top 2.5% support</div><div class='formula'><b>Prompt</b><br>tight top 5% extent, 0% expansion, plus one peak point</div></div><p>The first pass found {base_manifest['prompt_count']} regions. The fixed same-module edge rule merged {merged_count} neighboring pieces and produced {len(prompt_rows)} final prompts.</p><div class='grid2'><figure><h3>All prompts on H&amp;E</h3><img src='{prompt_he_uri}' alt='{tma} prompts on H&E'><figcaption>Every rectangle is the actual tight box. Every black-centered white dot is its positive point.</figcaption></figure><figure><h3>The same prompts on raw FICTURE</h3><img src='{prompt_ficture_uri}' alt='{tma} prompts on FICTURE' style='image-rendering:pixelated'><figcaption>Coordinates are identical. Prompt colors identify GeneMap modules, not tissue classes.</figcaption></figure></div><div class='legend'>{module_legend}</div></section>
-<section><h2>5. Paired SAM3 and the two H&amp;E supplement branches</h2><p>SAM3 was called once on FICTURE and once on H&amp;E for every GeneMap prompt. Every FICTURE prompt must produce a primary mask. An H&amp;E call contributes at most one mask; if no proposal contains its positive point, that call is recorded without adding an H&amp;E candidate. An available paired H&amp;E mask is retained only when at least 40% of its area lies outside the union of all FICTURE primary masks.</p><div class='metrics'><div class='metric'><b>{ficture_manifest['total_inference_calls']}</b><span>FICTURE SAM3 calls</span></div><div class='metric'><b>{he_manifest['total_inference_calls']}</b><span>paired H&amp;E SAM3 calls</span></div><div class='metric'><b>{ficture_manifest['total_eligible_unique_masks']:,}</b><span>eligible internal FICTURE alternatives audited</span></div><div class='metric'><b>{he_manifest['total_eligible_unique_masks']:,}</b><span>eligible internal H&amp;E alternatives audited</span></div><div class='metric'><b>{he_manifest.get('prompts_without_eligible_mask', 0)}</b><span>H&amp;E calls with no point-consistent mask</span></div><div class='metric'><b>{len(retained_pairs)}</b><span>same-prompt H&amp;E retained by the 40% rule</span></div></div><div class='grid2'><figure><h3>Selected FICTURE primary masks</h3><img src='{ficture_map_uri}' alt='{tma} FICTURE SAM candidates'><figcaption>{len(ficture_selected)} masks, colored by the GeneMap module that placed each prompt.</figcaption></figure><figure><h3>Available paired H&amp;E masks before the 40% rule</h3><img src='{he_map_uri}' alt='{tma} paired H&E SAM candidates'><figcaption>{len(he_selected)} point-consistent H&amp;E masks were available; {len(retained_pairs)} add enough new area to enter the pool.</figcaption></figure></div><h3>Independent H&amp;E-present / FICTURE-low branch</h3><p>The same detector is applied to every TMA: 64 by 64 cells, at least 35% H&amp;E tissue, at most 8% FICTURE signal, and at least six connected cells. Each detected region receives one 10% context box plus one automatic inside positive point.</p><figure><img src='{gap_overlay_uri}' alt='{tma} independent H&E gap prompts'><figcaption>{gap_prompt_manifest['detected_region_count']} regions were detected and {gap_sam_manifest['selected_candidate_count']} independent H&amp;E masks were selected.</figcaption></figure></section>
-<section><h2>6. Frozen candidate pool before the VLM</h2><div class='formula'><b>{source_counts['FICTURE primary']} FICTURE primary + {source_counts['Same-prompt H&E supplement']} same-prompt H&amp;E + {source_counts['Independent H&E supplement']} independent H&amp;E = {len(pool_rows)} final candidates</b></div><p>IoU 0.90 cleanup removed {dedup_removed} near-duplicate masks. No masks were unioned.</p><figure><h3>All final candidates on registered H&amp;E</h3><img src='{final_pool_uri}' alt='{tma} final pre-VLM candidate map'><figcaption>Nine fixed colors identify GeneMap modules for FICTURE primary masks. Cyan identifies same-prompt H&amp;E supplements. Magenta identifies independent H&amp;E supplements.</figcaption></figure><div class='legend'>{module_legend}<span><i style='background:{SOURCE_COLORS['Same-prompt H&E supplement']}'></i>Same-prompt H&amp;E</span><span><i style='background:{SOURCE_COLORS['Independent H&E supplement']}'></i>Independent H&amp;E</span></div></section>
-<section><h2>7. Interactive inventory of all {len(pool_rows)} frozen candidates</h2><p>Select a source or module, then click one candidate. The two panels show the same mask in local H&amp;E and registered raw FICTURE context. No annotation or tissue label is used here.</p><div class='viewer'><aside><div class='controls'><label>Source<select id='source-filter'><option value='all'>All sources</option>{source_filter_options}</select></label><label>GeneMap module<select id='module-filter'><option value='all'>All modules</option>{module_filter_options}</select></label></div><div class='candidate-list' id='candidate-list'></div></aside><div><h3 id='candidate-title'></h3><p id='candidate-source'></p><div class='candidate-meta'><div><b id='candidate-area'></b><span>mask pixels</span></div><div><b id='candidate-score'></b><span>SAM score</span></div><div><b id='candidate-module'></b><span>GeneMap module</span></div><div><b>Frozen</b><span>pre-VLM status</span></div></div><div class='candidate-images'><figure><h3>Candidate on H&amp;E</h3><img id='candidate-he'><figcaption>Local morphology and the selected mask boundary.</figcaption></figure><figure><h3>Candidate on raw FICTURE</h3><img id='candidate-ficture' style='image-rendering:pixelated'><figcaption>The same candidate coordinates on the unchanged K=12 FICTURE input.</figcaption></figure></div></div></div><details><summary>Complete candidate table</summary><div class='details-body'>{table(['Candidate','Source','Module','Area pixels','SAM score'],[[f'{tma} C{i:02d}',html.escape(row['source']),html.escape(row['gene_module'] or 'none'),f"{int(row['area_pixels']):,}",f"{float(row['sam_score']):.4f}"] for i,row in enumerate(pool_rows,1)])}</div></details></section>
-<section><h2>8. Reproducibility audit</h2>{table(['Item','Verified value'],[['Workflow','tma39-fixed-sam3-v1'],['Registered canvas',f'{he_image.width} x {he_image.height}'],['Frozen gene-module SHA-256',html.escape(gene_summary['fixed_module_source_sha256'])],['FICTURE legend SHA-256',EXPECTED_FACTOR_INFO_SHA256],['Transcript rows read',f"{gene_summary['transcript_rows']:,}"],['Transcript rows mapped',f"{gene_summary['transcript_rows_mapped_to_tma_canvas']:,}"],['GeneMap grid',f"{raw_scores.shape[2]} x {raw_scores.shape[1]}"],['Tissue bins',f"{int(tissue.sum()):,}"],['Main prompts',str(len(prompt_rows))],['Main SAM3 calls',f"{ficture_manifest['total_inference_calls']} FICTURE + {he_manifest['total_inference_calls']} H&E"],['Independent H&E calls',str(gap_sam_manifest['total_inference_calls'])],['Final pool',f"{len(pool_rows)} unique masks"],['Annotation files used','0']])}<details><summary>Input hashes</summary><div class='details-body audit'>H&amp;E: {audited_input['he_sha256']}<br>FICTURE: {audited_input['ficture_sha256']}<br>Factor legend: {EXPECTED_FACTOR_INFO_SHA256}</div></details></section>
-<p class='footer'>Generated only from the frozen pre-VLM workflow. Classification, annotation comparison, and second-SAM refinement are outside this report.</p>
-</main><div class='modal' id='modal'><button id='modal-close' aria-label='Close'>&times;</button><p id='modal-title'></p><img id='modal-image'></div><script>
+    content = f"""<!doctype html><html lang='en'><head><meta charset='utf-8'><meta name='viewport' content='width=device-width,initial-scale=1'><meta name='report-template' content='{REPORT_TEMPLATE_ID}'><link rel='icon' href='data:,'><title>{tma} Pre-VLM Workflow</title><style>{css}</style></head><body>
+<header><p class='eyebrow'>{tma} · SAM3 · pre-VLM report</p><h1>SAM3 Candidate Selection Before VLM</h1><p class='lede'>The fixed TMA39 workflow is applied without changing the gene groups, FICTURE colors, prompt rules, SAM3 selection, H&amp;E supplements, or duplicate rule.</p><div class='metrics'><div class='metric'><b>120</b><span>fixed genes</span></div><div class='metric'><b>9</b><span>fixed GeneMap modules</span></div><div class='metric'><b>{len(prompt_rows)}</b><span>tight box-plus-point prompts</span></div><div class='metric'><b>{source_counts['FICTURE primary']}</b><span>FICTURE primary masks</span></div><div class='metric'><b>{source_counts['Same-prompt H&E supplement']} + {source_counts['Independent H&E supplement']}</b><span>H&amp;E supplements</span></div><div class='metric'><b>{len(pool_rows)}</b><span>frozen candidates</span></div></div><nav class='top-nav'><a href='#selection'>Selection</a><a href='#framework'>Workflow</a><a href='#pool'>Candidate pool</a><a href='#candidates'>Candidate viewer</a><a href='#audit'>Audit</a></nav></header>
+
+<section id='selection'><h2>1. What was corrected and frozen</h2><p class='section-intro'>Every TMA now uses the exact foreground-support algorithm from the accepted TMA39 run. The registered H&amp;E is thresholded at working resolution, small components are removed, holes are filled, the support is dilated by four pixels, and it is returned to full resolution with nearest-neighbor sampling.</p><div class='method-strip'><div><b>Input</b>Registered H&amp;E and unchanged K=12 strict-official raw FICTURE.</div><div><b>Prompt</b>One tight 0% GeneMap box plus its highest-score point.</div><div><b>SAM3</b>One call per prompt on each source; at most one mask is selected from that call.</div><div><b>Cleanup</b>IoU 0.90 removes near duplicates. Masks are never unioned.</div></div>{table(['Branch','Calls','Selected-mask rule','Role in final pool'],[["FICTURE main",str(ficture_manifest['total_inference_calls']),"Best valid mask by GeneMap-support F1","Primary candidate"],["Same-prompt H&amp;E",str(he_manifest['total_inference_calls']),"Same rule; keep only if at least 40% of its area is new","Supplement"],["Independent H&amp;E",str(gap_sam_manifest['total_inference_calls']),"Highest-score valid mask containing the automatic point","Supplement for H&amp;E-present / FICTURE-low tissue"]])}<div class='note result-note'><b>Current boundary:</b> the candidate pool is complete. VLM classification, GT comparison, class-grouped second SAM, and final tissue-map assembly are not run in this report.</div></section>
+
+<section id='framework'><h2>2. Complete workflow</h2><div class='flow'><div><b>1. Build GeneMaps</b>Score the same nine fixed gene groups on this TMA.<span class='stage'>Completed</span></div><div><b>2. Place prompts</b>Convert connected high-score regions into tight boxes and peak points.<span class='stage'>Completed</span></div><div><b>3. Run paired SAM3</b>Use the same coordinates on raw FICTURE and registered H&amp;E.<span class='stage'>Completed</span></div><div><b>4. Add H&amp;E evidence</b>Keep new same-prompt masks and independent low-FICTURE gaps.<span class='stage'>Completed</span></div><div><b>5. Freeze the pool</b>Remove only IoU 0.90 near duplicates; do not union masks.<span class='stage'>Completed</span></div><div class='planned'><b>6. Classify with VLM</b>Use close, medium, and full H&amp;E/FICTURE views.<span class='stage'>Next</span></div><div class='planned'><b>7. Refine and assemble</b>Run same-class prompts together, then return masks to the TMA map.<span class='stage'>Planned</span></div></div>
+<div class='grid3'><figure><h3>Registered H&amp;E</h3><img src='{overview_he_uri}' alt='{tma} registered H&E'><figcaption>Morphology source on the common {he_image.width} × {he_image.height} canvas.</figcaption></figure><figure><h3>K=12 strict-official raw FICTURE</h3><img class='pixelated' src='{overview_ficture_uri}' alt='{tma} registered raw FICTURE'><figcaption>The unchanged RGB source used by SAM3; no smoothing or recoloring.</figcaption></figure><figure><h3>GeneMap prompt regions</h3><img src='{genemap_regions_uri}' alt='{tma} GeneMap prompt regions'><figcaption>Each colored connected region becomes one box and one positive point.</figcaption></figure></div>
+<h3>Actual boxes and points</h3><div class='grid2'><figure><h3>Prompts on H&amp;E</h3><img src='{prompt_he_uri}' alt='{tma} prompts on H&E'><figcaption>The colored rectangle is the tight box; the black-centered white dot is the positive point.</figcaption></figure><figure><h3>The same prompts on raw FICTURE</h3><img class='pixelated' src='{prompt_ficture_uri}' alt='{tma} prompts on FICTURE'><figcaption>Coordinates and module colors are identical in both panels.</figcaption></figure></div><div class='legend'>{module_legend}</div>
+<h3>Nine fixed modules and their regions on {tma}</h3>{module_table_html}<figure class='full-width-image'><h3>All nine GeneMap modules</h3><img class='pixelated' src='{module_composite}' alt='{tma} all nine GeneMap modules'><figcaption>Brighter green means a higher module score at that location. The title above each map gives the number of final connected prompt regions.</figcaption></figure><details><summary>Open the nine individual module maps</summary><div class='details-body'><div class='modules'>{module_cards}</div></div></details><details><summary>How the fixed nine modules were defined</summary><div class='details-body'><p>TMA39 gene maps were compared with Pearson correlation. The distance was <code>1 - correlation</code>, so genes bright in the same tissue locations were close. Average-linkage hierarchical clustering was tested with four through ten groups; nine had the highest mean silhouette value and was frozen for all TMAs.</p></div></details>
+<h3>How high-score locations become regions</h3><p>For each module, the horizontal axis below is its score at one tissue bin and the vertical axis is the number of tissue bins in that score interval. The red dashed line is that module's 95th percentile. Bins to its right are the highest-scoring 5% and define possible region extent.</p><figure class='full-width-image'><img src='{distribution_uri}' alt='{tma} module score distributions'><figcaption>Top 1% bins locate strong centers, connected top 2.5% bins confirm support, and connected top 5% bins define the tight 0%-expansion box. The first pass had {base_manifest['prompt_count']} pieces; the fixed same-module edge rule merged {merged_count} neighboring pieces into {len(prompt_rows)} prompts.</figcaption></figure>
+<details><summary>Fixed FICTURE factor colors</summary><div class='details-body'><div class='factor-grid'>{factor_cards_html}</div></div></details></section>
+
+<section id='pool'><h2>3. Frozen {len(pool_rows)}-candidate pool</h2><div class='count-flow'>{source_counts['FICTURE primary']} FICTURE primary + {source_counts['Same-prompt H&E supplement']} same-prompt H&amp;E + {source_counts['Independent H&E supplement']} independent H&amp;E = {len(pool_rows)} final candidates</div><div class='grid3'><figure><h3>FICTURE primary</h3><img src='{ficture_map_uri}' alt='{tma} FICTURE primary candidates'><figcaption>{source_counts['FICTURE primary']} masks. Colors identify the GeneMap module that created each prompt.</figcaption></figure><figure><h3>Same-prompt H&amp;E supplements</h3><img src='{same_prompt_pool_uri}' alt='{tma} same-prompt H&E supplements'><figcaption>{source_counts['Same-prompt H&E supplement']} cyan masks add at least 40% area outside the complete FICTURE union.</figcaption></figure><figure><h3>Independent H&amp;E supplements</h3><img src='{independent_pool_uri}' alt='{tma} independent H&E supplements'><figcaption>{source_counts['Independent H&E supplement']} magenta masks come from automatic H&amp;E-present / FICTURE-low regions.</figcaption></figure></div><details><summary>Open independent H&amp;E gap prompts</summary><div class='details-body'><figure><img src='{gap_overlay_uri}' alt='{tma} independent H&E gap prompts'><figcaption>The detector uses 64 × 64 cells, at least 35% H&amp;E tissue, at most 8% FICTURE signal, at least six connected cells, and one 10% context box plus one automatic inside point.</figcaption></figure></div></details><figure class='full-width-image'><h3>All final candidates on registered H&amp;E</h3><img src='{final_pool_uri}' alt='{tma} final pre-VLM candidate map'><figcaption>All sources are shown together after {dedup_removed} IoU 0.90 near duplicates were removed. No masks were merged or unioned.</figcaption></figure><div class='legend'>{module_legend}<span><i style='background:{SOURCE_COLORS['Same-prompt H&E supplement']}'></i>Same-prompt H&amp;E</span><span><i style='background:{SOURCE_COLORS['Independent H&E supplement']}'></i>Independent H&amp;E</span></div></section>
+
+<section id='candidates'><h2>4. All {len(pool_rows)} candidate inputs ready for VLM</h2><p>Select a source or module, then choose one candidate. Both panels show the same selected mask in local H&amp;E and unchanged raw FICTURE context.</p><div class='viewer'><aside><div class='controls'><label>Source<select id='source-filter'><option value='all'>All sources</option>{source_filter_options}</select></label><label>GeneMap module<select id='module-filter'><option value='all'>All modules</option>{module_filter_options}</select></label></div><div class='candidate-list' id='candidate-list'></div></aside><div><h3 id='candidate-title'></h3><p id='candidate-source'></p><div class='candidate-meta'><div><b id='candidate-area'></b><span>mask pixels</span></div><div><b id='candidate-score'></b><span>SAM score</span></div><div><b id='candidate-module'></b><span>GeneMap module</span></div><div><b>Frozen</b><span>pre-VLM status</span></div></div><div class='candidate-images'><figure><h3>Candidate on H&amp;E</h3><img id='candidate-he' alt='Selected candidate on H&E'><figcaption>Local morphology with the candidate fill and boundary.</figcaption></figure><figure><h3>Candidate on raw FICTURE</h3><img id='candidate-ficture' class='pixelated' alt='Selected candidate on raw FICTURE'><figcaption>The same coordinates on the fixed K=12 input.</figcaption></figure></div></div></div><details><summary>Complete candidate table</summary><div class='details-body'>{table(['Candidate','Source','Module','Area pixels','SAM score'],[[f'{tma} C{i:02d}',html.escape(row['source']),html.escape(row['gene_module'] or 'none'),f"{int(row['area_pixels']):,}",f"{float(row['sam_score']):.4f}"] for i,row in enumerate(pool_rows,1)])}</div></details></section>
+
+<section id='audit'><h2>5. Reproducibility audit</h2>{table(['Item','Verified value'],[['Report template',REPORT_TEMPLATE_ID],['Workflow','tma39-fixed-sam3-v1'],['Registered canvas',f'{he_image.width} × {he_image.height}'],['H&E support method',html.escape(support_manifest['method'])],['Support working size',f"{support_manifest['work_size'][0]} × {support_manifest['work_size'][1]}"],['Frozen gene-module SHA-256',html.escape(gene_summary['fixed_module_source_sha256'])],['FICTURE legend SHA-256',EXPECTED_FACTOR_INFO_SHA256],['Transcript rows mapped',f"{gene_summary['transcript_rows_mapped_to_tma_canvas']:,}"],['GeneMap grid',f"{raw_scores.shape[2]} × {raw_scores.shape[1]}"],['Tissue bins',f"{int(tissue.sum()):,}"],['Main prompts',str(len(prompt_rows))],['Main SAM3 calls',f"{ficture_manifest['total_inference_calls']} FICTURE + {he_manifest['total_inference_calls']} H&E"],['Independent H&E calls',str(gap_sam_manifest['total_inference_calls'])],['Final pool',f"{len(pool_rows)} unique masks"]])}<details><summary>Input hashes</summary><div class='details-body audit'>H&amp;E: {audited_input['he_sha256']}<br>FICTURE: {audited_input['ficture_sha256']}<br>Factor legend: {EXPECTED_FACTOR_INFO_SHA256}</div></details><p class='footer'>This page ends at the frozen pre-VLM candidate pool.</p></section>
+
+<div class='modal' id='modal'><button id='modal-close' aria-label='Close'>&times;</button><p id='modal-title'></p><img id='modal-image' alt='Expanded GeneMap'></div><script>
 const candidates={json.dumps(candidate_payload,separators=(',',':'))};
 const list=document.getElementById('candidate-list');const sourceFilter=document.getElementById('source-filter');const moduleFilter=document.getElementById('module-filter');let active=null;
 function show(item){{active=item.id;document.getElementById('candidate-title').textContent=item.id;document.getElementById('candidate-source').textContent=item.source_label;document.getElementById('candidate-area').textContent=item.area.toLocaleString();document.getElementById('candidate-score').textContent=item.sam_score.toFixed(4);document.getElementById('candidate-module').textContent=item.module==='none'?'none':`Module ${{item.module}}`;document.getElementById('candidate-he').src=item.he;document.getElementById('candidate-ficture').src=item.ficture;renderList();}}
@@ -486,33 +586,19 @@ function renderList(){{const rows=filtered();list.innerHTML='';for(const item of
 sourceFilter.onchange=renderList;moduleFilter.onchange=renderList;renderList();
 const modal=document.getElementById('modal');document.querySelectorAll('.image-button').forEach(button=>button.onclick=()=>{{document.getElementById('modal-image').src=button.dataset.image;document.getElementById('modal-title').textContent=button.dataset.title;modal.classList.add('open');}});document.getElementById('modal-close').onclick=()=>modal.classList.remove('open');modal.onclick=e=>{{if(e.target===modal)modal.classList.remove('open');}};
 </script></body></html>"""
-    content = content.replace(
-        "Every FICTURE prompt must produce a primary mask. An H&amp;E call contributes at most one mask; if no proposal contains its positive point, that call is recorded without adding an H&amp;E candidate.",
-        "Each call contributes at most one selected mask. If no proposal survives the same positive-point, foreground, area, and duplicate checks, that call is recorded and adds no mask; the box or point is never moved for one TMA.",
-    )
-    eligible_ficture_metric = (
-        f"<div class='metric'><b>{ficture_manifest['total_eligible_unique_masks']:,}</b>"
-        "<span>eligible internal FICTURE alternatives audited</span></div>"
-    )
-    no_output_metrics = (
-        f"<div class='metric'><b>{ficture_manifest.get('prompts_without_eligible_mask', 0)}</b>"
-        "<span>FICTURE calls with no valid mask</span></div>"
-        f"<div class='metric'><b>{he_manifest.get('prompts_without_eligible_mask', 0)}</b>"
-        "<span>H&amp;E calls with no valid mask</span></div>"
-    )
-    content = content.replace(
-        eligible_ficture_metric,
-        no_output_metrics + eligible_ficture_metric,
-        1,
-    )
-    content = content.replace(
-        f"<div class='metric'><b>{he_manifest.get('prompts_without_eligible_mask', 0)}</b>"
-        "<span>H&amp;E calls with no point-consistent mask</span></div>",
-        "",
-        1,
-    )
     args.output.write_text(content, encoding="utf-8")
-    print(json.dumps({"tma": tma, "output": str(args.output), "bytes": args.output.stat().st_size, "candidates": len(pool_rows)}, indent=2))
+    print(
+        json.dumps(
+            {
+                "tma": tma,
+                "output": str(args.output),
+                "bytes": args.output.stat().st_size,
+                "candidates": len(pool_rows),
+                "report_template": REPORT_TEMPLATE_ID,
+            },
+            indent=2,
+        )
+    )
 
 
 if __name__ == "__main__":

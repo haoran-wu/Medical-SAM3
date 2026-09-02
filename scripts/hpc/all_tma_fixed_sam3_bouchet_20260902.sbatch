@@ -1,12 +1,12 @@
 #!/usr/bin/env bash
 #SBATCH --job-name=all_tma_sam3
-#SBATCH --partition=gpu_devel
+#SBATCH --partition=gpu_b200
 #SBATCH --gres=gpu:b200:1
 #SBATCH --array=0-9%2
 #SBATCH --cpus-per-task=8
 #SBATCH --mem=110G
 #SBATCH --time=02:00:00
-#SBATCH --output=/nfs/roberts/project/pi_xy48/hw646/Medical-SAM3_all_tma_pre_vlm_20260902/logs/sam3_%A_%a.log
+#SBATCH --output=/nfs/roberts/project/pi_xy48/hw646/Medical-SAM3_all_tma_pre_vlm_tma39_exact_20260902/logs/sam3_%A_%a.log
 #SBATCH --mail-type=NONE
 
 set -euo pipefail
@@ -18,7 +18,7 @@ PROJECT=/nfs/roberts/project/pi_xy48/hw646/Medical-SAM3
 SAM3_ROOT=/nfs/roberts/project/pi_xy48/hw646/sam3
 PY=/nfs/roberts/project/pi_xy48/hw646/ycrc_conda/envs/medsam3/bin/python
 CHECKPOINT=${PROJECT}/checkpoints/SAM3-base/sam3.pt
-ROOT=/nfs/roberts/project/pi_xy48/hw646/Medical-SAM3_all_tma_pre_vlm_20260902
+ROOT=/nfs/roberts/project/pi_xy48/hw646/Medical-SAM3_all_tma_pre_vlm_tma39_exact_20260902
 RUN=${ROOT}/${TMA}
 SHARED=${ROOT}/shared
 CODE=${SHARED}/code
@@ -50,10 +50,9 @@ mkdir -p "${MPLCONFIGDIR}" "${RUN}/logs"
 
 for required in "${PY}" "${CHECKPOINT}" "${HE_IMAGE}" "${FICTURE_IMAGE}" \
   "${STAGING}/factor_info.csv" "${PROMPTS}" "${LABELS}" \
-  "${CODE}/build_registered_he_tissue_support.py" \
+  "${CODE}/tma39_build_blind_tissue_support.py" \
   "${CODE}/prepare_tma39_raw_he_gap_prompts.py" \
   "${CODE}/run_tma39_auditable_internal_mask_selection_20260825.py" \
-  "${CODE}/run_tma39_he_gap_uniform_box_point.py" \
   "${CODE}/run_fixed_he_gap_box_point_sam3.py" \
   "${CODE}/build_fixed_tma39_transfer_pool.py" \
   "${CODE}/validate_tma39_fixed_workflow.py"; do
@@ -68,9 +67,11 @@ echo "Independent H&E: 64 px, 35% H&E, 8% FICTURE, 6 connected cells, 10% contex
 date --iso-8601=seconds
 
 if [[ ! -s "${SUPPORT}" ]]; then
-  "${PY}" "${CODE}/build_registered_he_tissue_support.py" \
+  "${PY}" "${CODE}/tma39_build_blind_tissue_support.py" \
     --he-image "${HE_IMAGE}" \
-    --output "${SUPPORT}"
+    --output "${SUPPORT}" \
+    --work-max-side 2048 \
+    --minimum-component-fraction 0.0002
 fi
 
 if [[ ! -s "${GAP_ROOT}/prompt_manifest.json" ]]; then

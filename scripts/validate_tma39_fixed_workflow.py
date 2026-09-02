@@ -10,6 +10,9 @@ import json
 from pathlib import Path
 from typing import Any
 
+import numpy as np
+from PIL import Image
+
 
 def parse_args() -> argparse.Namespace:
     parser = argparse.ArgumentParser(description=__doc__)
@@ -54,6 +57,11 @@ def sha256(path: Path) -> str:
     return digest.hexdigest()
 
 
+def binary_pixel_sha256(path: Path) -> tuple[int, str]:
+    pixels = (np.asarray(Image.open(path).convert("L"), dtype=np.uint8) > 0).astype(np.uint8)
+    return int(pixels.sum()), hashlib.sha256(pixels.tobytes()).hexdigest()
+
+
 def require(condition: bool, message: str) -> None:
     if not condition:
         raise RuntimeError(message)
@@ -63,6 +71,26 @@ def validate_contract(contract: dict[str, Any]) -> None:
     require(contract["workflow_id"] == "tma39-fixed-sam3-v1", "Wrong workflow ID")
     require(contract["inputs"]["ficture_smoothing"] is False, "FICTURE smoothing is forbidden")
     require(contract["inputs"]["ficture_recoloring"] is False, "FICTURE recoloring is forbidden")
+    support = contract["foreground_support"]
+    require(
+        (
+            support["method"],
+            support["work_max_side"],
+            support["minimum_component_fraction"],
+            support["closing_disk_radius"],
+            support["dilation_disk_radius"],
+            support["full_resolution_resampling"],
+        )
+        == (
+            "registered_he_color_threshold_components_v1",
+            2048,
+            0.0002,
+            2,
+            4,
+            "nearest",
+        ),
+        "H&E foreground-support algorithm changed",
+    )
     require(contract["genemap"]["fixed_gene_count"] == 120, "Expected 120 fixed genes")
     require(contract["genemap"]["fixed_module_count"] == 9, "Expected nine GeneMap modules")
     require(contract["main_prompt"]["box_expansion_fraction"] == 0.0, "Main boxes must be tight")
@@ -88,6 +116,7 @@ def validate_run(
     *,
     stage: str,
     input_audit_path: Path | None,
+    contract_dir: Path,
 ) -> dict[str, Any]:
     gene = read_json(root / "genemap_scores/summary.json")
     prompts = read_json(root / "prompts/final_sustained_edge3/adaptive_prompt_manifest.json")
@@ -98,8 +127,27 @@ def validate_run(
     independent = read_json(root / "sam3_independent_he_gap/run_manifest.json")
     gap_prompts = read_json(root / "independent_he_gap_detection/prompt_manifest.json")
     pool = read_json(root / "frozen_pool/run_manifest.json")
+    support_path = root / "staging" / f"{pool['tma']}_blind_he_tissue_support.png"
+    support_manifest = read_json(support_path.with_suffix(".json"))
 
     expected_prompts = int(prompts["prompt_count"])
+    support_contract = contract["foreground_support"]
+    require(support_manifest["method"] == support_contract["method"], "Foreground-support method changed")
+    require(support_manifest["work_max_side"] == support_contract["work_max_side"], "Foreground-support work size changed")
+    require(
+        support_manifest["minimum_component_fraction"] == support_contract["minimum_component_fraction"],
+        "Foreground-support component threshold changed",
+    )
+    require(support_manifest["closing_disk_radius"] == support_contract["closing_disk_radius"], "Foreground-support closing changed")
+    require(support_manifest["dilation_disk_radius"] == support_contract["dilation_disk_radius"], "Foreground-support dilation changed")
+    require(
+        support_manifest["full_resolution_resampling"] == support_contract["full_resolution_resampling"],
+        "Foreground-support resampling changed",
+    )
+    if pool["tma"] == "TMA39":
+        support_pixels, support_hash = binary_pixel_sha256(support_path)
+        require(support_pixels == support_contract["tma39_binary_pixel_count"], "TMA39 support pixel count changed")
+        require(support_hash == support_contract["tma39_binary_pixel_sha256"], "TMA39 support pixels changed")
     require(gene["fixed_gene_count"] == 120 and gene["active_gene_count"] == 120, "Gene count changed")
     require(gene["gene_module_count"] == 9, "Module count changed")
     require(
@@ -199,6 +247,27 @@ def validate_run(
         require(mask.is_file(), f"Missing candidate mask: {mask}")
         require(sha256(mask) == row["mask_sha256"], f"Candidate mask hash mismatch: {row['candidate_id']}")
 
+    tma39_reference_match: bool | None = None
+    if pool["tma"] == "TMA39":
+        reference_path = contract_dir / contract["foreground_support"]["tma39_candidate_reference_manifest"]
+        reference = read_json(reference_path)
+        require(sha256(prompt_csv) == reference["prompt_csv_sha256"], "TMA39 prompt CSV differs from reference")
+        observed_records = []
+        for row in final_rows:
+            mask = root / "frozen_pool" / row["mask_path"]
+            area, pixel_hash = binary_pixel_sha256(mask)
+            observed_records.append(
+                {
+                    "source": row["source"],
+                    "area_pixels": area,
+                    "binary_pixel_sha256": pixel_hash,
+                }
+            )
+        observed_records.sort(key=lambda item: (item["source"], item["binary_pixel_sha256"]))
+        require(len(observed_records) == reference["reference_candidate_count"], "TMA39 candidate count differs from reference")
+        require(observed_records == reference["candidates"], "TMA39 candidate pixels differ from reference")
+        tma39_reference_match = True
+
     return {
         "workflow_id": contract["workflow_id"],
         "tma": pool["tma"],
@@ -207,13 +276,15 @@ def validate_run(
         "source_counts": pool["final_source_counts"],
         "selection_used_annotation": False,
         "validated_stage": stage,
+        "tma39_reference_match": tma39_reference_match,
         "status": "valid",
     }
 
 
 def main() -> None:
     args = parse_args()
-    contract = read_json(args.contract)
+    contract_path = args.contract.resolve()
+    contract = read_json(contract_path)
     validate_contract(contract)
     result: dict[str, Any] = {"workflow_id": contract["workflow_id"], "contract": "valid"}
     if args.run_root:
@@ -222,6 +293,7 @@ def main() -> None:
             contract,
             stage=args.stage,
             input_audit_path=args.input_audit.resolve() if args.input_audit else None,
+            contract_dir=contract_path.parent,
         )
     print(json.dumps(result, indent=2, sort_keys=True))
 

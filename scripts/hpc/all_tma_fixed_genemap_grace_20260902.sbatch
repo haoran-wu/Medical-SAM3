@@ -5,7 +5,7 @@
 #SBATCH --cpus-per-task=8
 #SBATCH --mem=48G
 #SBATCH --time=04:00:00
-#SBATCH --output=/vast/palmer/pi/xiting_yan/hw646/Medical-SAM3_all_tma_pre_vlm_20260902/logs/genemap_%A_%a.log
+#SBATCH --output=/vast/palmer/pi/xiting_yan/hw646/Medical-SAM3_all_tma_pre_vlm_tma39_exact_20260902/logs/genemap_%A_%a.log
 #SBATCH --mail-type=NONE
 
 set -euo pipefail
@@ -23,7 +23,7 @@ TMA=${TMAS[$SLURM_ARRAY_TASK_ID]}
 SLIDE=${SLIDES[$SLURM_ARRAY_TASK_ID]}
 
 PROJECT=/vast/palmer/pi/xiting_yan/hw646/Medical-SAM3
-ROOT=/vast/palmer/pi/xiting_yan/hw646/Medical-SAM3_all_tma_pre_vlm_20260902
+ROOT=/vast/palmer/pi/xiting_yan/hw646/Medical-SAM3_all_tma_pre_vlm_tma39_exact_20260902
 RUN=${ROOT}/${TMA}
 SHARED=${ROOT}/shared
 CODE=${SHARED}/code

@@ -9,6 +9,20 @@
     "ficture_display_resampling": "nearest",
     "factor_legend_sha256": "f89e0e599f6451ff37dbad24ff4b1a27b8c99bb66c033f5a40743268711181c6"
   },
+  "foreground_support": {
+    "method": "registered_he_color_threshold_components_v1",
+    "script": "tma39_build_blind_tissue_support.py",
+    "work_max_side": 2048,
+    "minimum_component_fraction": 0.0002,
+    "tissue_rule": "min_rgb_below_244_and_chroma_at_least_7_or_intensity_below_226",
+    "closing_disk_radius": 2,
+    "fill_holes_per_component": true,
+    "dilation_disk_radius": 4,
+    "full_resolution_resampling": "nearest",
+    "tma39_binary_pixel_count": 23516700,
+    "tma39_binary_pixel_sha256": "30d4b48750c0c0b65edbb30e7df929b83bbeec704ee2d9dd99960afa25ca1180",
+    "tma39_candidate_reference_manifest": "tma39_fixed_candidate_reference_v1.json"
+  },
   "genemap": {
     "fixed_gene_count": 120,
     "fixed_module_count": 9,

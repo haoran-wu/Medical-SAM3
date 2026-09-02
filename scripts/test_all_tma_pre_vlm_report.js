@@ -27,10 +27,16 @@ async function testReport(browser, reportPath, screenshotDir) {
     return {
       title: document.title,
       h1: document.querySelector("h1")?.textContent || "",
+      template: document.querySelector("meta[name='report-template']")?.content || "",
+      sectionIds: [...document.querySelectorAll("section[id]")].map((node) => node.id),
+      headerBackground: getComputedStyle(document.querySelector("header")).backgroundColor,
       imageCount: document.images.length,
       brokenImages,
       moduleCards: document.querySelectorAll(".module-card").length,
       candidateButtons: candidateButtons.length,
+      samePromptLabelsWithoutModule: candidateButtons
+        .map((button) => button.querySelector("small")?.textContent || "")
+        .filter((label) => label.startsWith("Same-prompt H&E supplement") && !/Module \\d+$/.test(label)),
       sourceOptions: sourceFilter ? [...sourceFilter.options].map((option) => option.value) : [],
       moduleOptions: moduleFilter ? [...moduleFilter.options].map((option) => option.value) : [],
       initialCandidate: document.getElementById("candidate-title")?.textContent || "",
@@ -39,8 +45,12 @@ async function testReport(browser, reportPath, screenshotDir) {
   });
 
   if (result.brokenImages.length) errors.push(`broken images: ${result.brokenImages.join(", ")}`);
+  if (result.template !== "tma39-sam3-presentation-v1") errors.push(`wrong report template: ${result.template}`);
+  if (result.sectionIds.join(",") !== "selection,framework,pool,candidates,audit") errors.push(`wrong section order: ${result.sectionIds.join(",")}`);
+  if (result.headerBackground !== "rgb(24, 35, 41)") errors.push(`wrong TMA39 header color: ${result.headerBackground}`);
   if (result.moduleCards !== 9) errors.push(`expected 9 module cards, found ${result.moduleCards}`);
   if (!result.candidateButtons) errors.push("candidate inventory is empty");
+  if (result.samePromptLabelsWithoutModule.length) errors.push("same-prompt H&E label is missing its GeneMap module");
   if (!result.initialCandidate) errors.push("candidate viewer did not initialize");
   if (result.bodyOverflow) errors.push("desktop page has horizontal overflow");
 

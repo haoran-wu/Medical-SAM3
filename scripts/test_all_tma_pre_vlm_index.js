@@ -25,6 +25,9 @@ async function main() {
     const result = await page.evaluate(() => ({
       title: document.title,
       h1: document.querySelector("h1")?.textContent || "",
+      template: document.querySelector("meta[name='report-template']")?.content || "",
+      sectionIds: [...document.querySelectorAll("section[id]")].map((node) => node.id),
+      headerBackground: getComputedStyle(document.querySelector("header")).backgroundColor,
       cards: document.querySelectorAll("a.card").length,
       rows: document.querySelectorAll("tbody tr").length,
       links: [...document.querySelectorAll("a.card")].map((node) => node.href),
@@ -32,6 +35,9 @@ async function main() {
     }));
     if (result.cards !== 10) errors.push(`expected 10 TMA cards, found ${result.cards}`);
     if (result.rows !== 10) errors.push(`expected 10 summary rows, found ${result.rows}`);
+    if (result.template !== "tma39-sam3-presentation-v1") errors.push(`wrong report template: ${result.template}`);
+    if (result.sectionIds.join(",") !== "reports,summary") errors.push(`wrong section order: ${result.sectionIds.join(",")}`);
+    if (result.headerBackground !== "rgb(24, 35, 41)") errors.push(`wrong TMA39 header color: ${result.headerBackground}`);
     if (result.overflow) errors.push("desktop index has horizontal overflow");
     for (const href of result.links) {
       const target = fileURLToPath(href);
@@ -45,7 +51,9 @@ async function main() {
     await page.locator("a.card").first().click();
     await page.waitForLoadState("load");
     const linkedHeading = await page.locator("h1").textContent();
-    if (!linkedHeading?.startsWith("TMA07:")) errors.push(`first report link opened unexpected page: ${linkedHeading}`);
+    if (linkedHeading !== "SAM3 Candidate Selection Before VLM") errors.push(`first report link opened unexpected page: ${linkedHeading}`);
+    const linkedEyebrow = await page.locator("header .eyebrow").textContent();
+    if (!linkedEyebrow?.startsWith("TMA07")) errors.push(`first report link opened wrong TMA: ${linkedEyebrow}`);
 
     await page.goto(pathToFileURL(indexPath).href, { waitUntil: "load" });
     await page.setViewportSize({ width: 390, height: 844 });

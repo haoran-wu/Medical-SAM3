@@ -1,0 +1,81 @@
+{
+  "workflow_id": "tma39-fixed-sam3-v1",
+  "status": "only_accepted_pre_vlm_workflow",
+  "inputs": {
+    "he": "registered H&E",
+    "ficture": "K=12 strict-official raw FICTURE",
+    "ficture_smoothing": false,
+    "ficture_recoloring": false,
+    "ficture_display_resampling": "nearest",
+    "factor_legend_sha256": "f89e0e599f6451ff37dbad24ff4b1a27b8c99bb66c033f5a40743268711181c6"
+  },
+  "genemap": {
+    "fixed_gene_count": 120,
+    "fixed_module_count": 9,
+    "module_membership_sha256": "23246f95bd1461529c2022c08b50b0b34e5fca4006deae800c06c3f67787d9a2",
+    "center_top_fraction": 0.01,
+    "connection_top_fraction": 0.025,
+    "extent_top_fraction": 0.05,
+    "minimum_shared_edge_bins_for_merge": 3
+  },
+  "main_prompt": {
+    "type": "tight box plus one positive point",
+    "box_expansion_fraction": 0.0,
+    "point_rule": "highest module score inside the GeneMap region"
+  },
+  "main_sam3": {
+    "checkpoint": "SAM3-base",
+    "sources": [
+      "raw FICTURE",
+      "registered H&E"
+    ],
+    "calls_per_prompt_per_source": 1,
+    "positive_point_required": true,
+    "mask_selection": "genemap_support_f1",
+    "primary_source": "raw FICTURE"
+  },
+  "same_prompt_he_supplement": {
+    "minimum_fraction_outside_complete_ficture_union": 0.4
+  },
+  "independent_he_supplement": {
+    "cell_size_pixels": 64,
+    "minimum_he_tissue_fraction": 0.35,
+    "maximum_ficture_signal_fraction": 0.08,
+    "minimum_connected_cells": 6,
+    "box_context_fraction": 0.1,
+    "point_rule": "one automatic inside point",
+    "mask_selection": "highest SAM score among unique masks containing the point"
+  },
+  "pool": {
+    "dedup_iou_threshold": 0.9,
+    "union_masks": false
+  },
+  "vlm": {
+    "views_per_candidate": 6,
+    "views": [
+      "close H&E",
+      "close raw FICTURE",
+      "medium H&E",
+      "medium raw FICTURE",
+      "full H&E",
+      "full raw FICTURE"
+    ],
+    "candidate_locator": "thin neutral black-white boundary",
+    "ficture_rgb_legend_in_prompt": true
+  },
+  "evaluation": {
+    "annotation_stage": "posthoc only",
+    "evaluable_candidate_purity_threshold": 0.5
+  },
+  "second_sam": {
+    "status": "planned",
+    "rule": "group accepted candidates by predicted class and submit same-class boxes and points together"
+  },
+  "forbidden_legacy_routes": [
+    "1280x1280 sliding boxes with stride 640",
+    "candidate generation without GeneMap",
+    "smoothed or recolored FICTURE as the selected input",
+    "automatic union of candidate masks",
+    "annotation-guided prompt generation or mask selection"
+  ]
+}
